@@ -3,797 +3,1613 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Blue Archive – Cost Calculation Demo</title>
-  <script src="TL-assistant-utils.js"></script>
+  <title>Blue Archive – Advanced TL Assistant</title>
+  <script src="utilities.js" onload="console.log('utilities.js loaded')" onerror="console.error('utilities.js failed to load')"></script>
+  <script src="tl-common.js" onload="console.log('tl-common.js loaded')" onerror="console.error('tl-common.js failed to load')"></script>
+  <script src="buffs.js" onload="console.log('buffs.js loaded')" onerror="console.error('buffs.js failed to load')"></script>
+  <script src="input-processor.js" onload="console.log('input-processor.js loaded')" onerror="console.error('input-processor.js failed to load')"></script>
+  <script src="tl-editor.js" onload="console.log('tl-editor.js loaded')" onerror="console.error('tl-editor.js failed to load')"></script>
+  <script src="timeline-formatter.js" onload="console.log('timeline-formatter.js loaded')" onerror="console.error('timeline-formatter.js failed to load')"></script>
   <style>
-    /* --- Minimal, clean styling for quick inspection --- */
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans JP", sans-serif; margin: 24px; }
-    h1 { font-size: 1.4rem; margin: 0 0 6px; }
-    .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 12px 0 16px; }
-    .btn { padding: 8px 12px; border-radius: 10px; border: 1px solid #ccc; background: #f7f7f7; cursor: pointer; }
-    .btn.active { background: #e6f2ff; border-color: #7fb6ff; font-weight: 600; }
-    table { border-collapse: collapse; width: 100%; }
-    thead th { position: sticky; top: 0; background: #fff; }
-    th, td { border: 1px solid #ddd; padding: 6px 8px; font-variant-numeric: tabular-nums; text-align: right; }
-    th:first-child, td:first-child, th:nth-child(2), td:nth-child(2), th:nth-child(3), td:nth-child(3), th:nth-child(4), td:nth-child(4) { text-align: center; }
-    caption { text-align: left; font-weight: 600; margin: 8px 0; }
-    .muted { color: #666; font-size: 0.92rem; }
-    .summary { margin: 10px 0 18px; }
-    .nowrap { white-space: nowrap; }
-    .cost-overflow { color: #d32f2f; font-weight: bold; }
-    .remaining-cost { color: #1976d2; font-weight: bold; }
-    .timeline-row { display: flex; }
-    .timeline-event { flex: 0 0 200px; }
-    .timeline-cost { flex: 1; }
+    body { 
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans JP", sans-serif; 
+      margin: 0; 
+      padding: 24px; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
     
-    /* タイムライン入力・出力の横並びレイアウト */
-    .timeline-container { display: flex; flex-direction: column; gap: 16px; }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
     
-    @media (min-width: 750px) {
-      .timeline-container { flex-direction: row; }
-      .timeline-input-section { flex: 0.4; margin-right: 8px; }
-      #timelineInfo { flex: 0.6; margin-left: 8px; }
+    .header {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+      padding: 24px;
+      text-align: center;
+    }
+    
+    h1 { 
+      font-size: 2rem; 
+      margin: 0 0 8px; 
+      font-weight: 700;
+    }
+    
+    .subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
+      margin: 0;
+    }
+    
+    .main-content {
+      padding: 24px;
+    }
+    
+    .controls { 
+      display: flex; 
+      gap: 12px; 
+      flex-wrap: wrap; 
+      align-items: center; 
+      <!-- 縦幅の調整はmarginとpaddingを調節することで行います -->
+      margin: 2px 0; 
+      padding: 4px;
+      background: #f8fafc;
+      border-radius: 12px;
+    }
+    
+    .btn { 
+      padding: 4px 8px; 
+      border-radius: 8px; 
+      border: 2px solid transparent; 
+      background: #4f46e5; 
+      color: white;
+      cursor: pointer; 
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    
+    .btn:hover { 
+      background: #4338ca; 
+      transform: translateY(-1px);
+    }
+    
+    .btn.active { 
+      background: #10b981; 
+      border-color: #059669; 
+    }
+    
+    .btn.secondary {
+      background: #6b7280;
+      color: white;
+    }
+    
+    .btn.secondary:hover {
+      background: #4b5563;
+    }
+
+    /* カノエ・チェリノボタン用の小さなスタイル */
+    .btn.small {
+      padding: 4px 4px;
+      font-size: 0.8rem;
+      min-width: auto;
+      margin: 1px 2px;
+    }
+
+    /* カノエ・チェリノのコントロール行のスペースを小さく */
+    .controls.compact {
+      gap: 0px;
+      margin: 0px 0;
+      padding: 0px;
+    }
+    
+    /* 設定パネル */
+    .settings-panel {
+      background: #f1f5f9;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 16px 0;
+      border: 2px solid #e2e8f0;
+    }
+    
+    /* 設定項目の解説文 */
+    .setting-comment {
+      margin-left: 10px;
+      color: #6b7280;
+      font-size: 0.9rem;
+      margin-top: 4px;
+      margin-bottom: 12px;
+    }
+    
+    /* 基本設定の2列レイアウト */
+    .settings-basic {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    
+    @media (min-width: 768px) {
+      .settings-basic {
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+    }
+    
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    
+    .form-group label {
+      font-weight: 600;
+      color: #374151;
+      font-size: 0.9rem;
+    }
+    
+    .form-group input, .form-group select {
+      padding: 8px 12px;
+      border: 2px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+    
+    /* タイムライン表示 */
+    .timeline-container { 
+      display: flex; 
+      flex-direction: column; 
+      gap: 20px; 
+    }
+    
+    @media (min-width: 900px) {
+      .timeline-container { 
+        flex-direction: row; 
+      }
+      .timeline-input-section { 
+        flex: 0.45; 
+      }
+      .timeline-output-section { 
+        flex: 0.55; 
+      }
+    }
+    
+    .input-section, .output-section {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 20px;
+      border: 2px solid #e2e8f0;
+    }
+    
+    .section-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #1f2937;
+      margin: 0 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    textarea {
+      width: 100%;
+      height: 300px;
+      padding: 12px;
+      border: 2px solid #d1d5db;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      resize: vertical;
+    }
+    
+    textarea:focus {
+      outline: none;
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+    
+    table { 
+      border-collapse: collapse; 
+      width: 100%; 
+      margin: 16px 0;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    thead th { 
+      position: sticky; 
+      top: 0; 
+      background: #4f46e5; 
+      color: white;
+      font-weight: 600;
+    }
+    
+    th, td { 
+      border: 1px solid #e5e7eb; 
+      padding: 10px 12px; 
+      font-variant-numeric: tabular-nums; 
+      text-align: right; 
+    }
+    
+    th:first-child, td:first-child, 
+    th:nth-child(2), td:nth-child(2), 
+    th:nth-child(3), td:nth-child(3), 
+    th:nth-child(4), td:nth-child(4),
+    th:nth-child(6), td:nth-child(6) { 
+      text-align: center; 
+    }
+    
+    tbody tr:nth-child(even) {
+      background: #f9fafb;
+    }
+    
+    tbody tr:hover {
+      background: #f3f4f6;
+    }
+    
+    .cost-overflow { 
+      color: #dc2626; 
+      font-weight: bold; 
+      background: #fef2f2;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    
+    .cost-normal {
+      color: #059669;
+    }
+    
+    .remaining-cost { 
+      color: #059669; 
+      font-weight: bold; 
+    }
+    
+    .muted { 
+      color: #6b7280; 
+      font-size: 0.9rem; 
+    }
+    
+    .summary { 
+      margin: 16px 0; 
+      padding: 16px;
+      background: white;
+      border-radius: 8px;
+      border-left: 4px solid #4f46e5;
+    }
+    
+    .error-message {
+      background: #fef2f2;
+      color: #dc2626;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid #fecaca;
+      margin: 16px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      position: relative;
+    }
+    
+    .success-message {
+      background: #f0fdf4;
+      color: #166534;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid #bbf7d0;
+      margin: 16px 0;
+    }
+    
+    .info-message {
+      background: #eff6ff;
+      color: #1d4ed8;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid #bfdbfe;
+      margin: 16px 0;
+    }
+    
+    /* JSON出力エリア */
+    .json-output {
+      background: #1f2937;
+      color: #f9fafb;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      padding: 16px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      max-height: 400px;
+      overflow-y: auto;
+      border: 2px solid #374151;
+    }
+    
+    /* アコーディオン */
+    .accordion {
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      margin: 16px 0;
+      overflow: hidden;
+    }
+    
+    .accordion-header {
+      background: #f3f4f6;
+      padding: 12px 16px;
+      cursor: pointer;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .accordion-header:hover {
+      background: #e5e7eb;
+    }
+    
+    .accordion-content {
+      padding: 16px;
+      background: white;
+      display: none;
+    }
+    
+    .accordion.open .accordion-content {
+      display: block;
+    }
+    
+    .accordion.open .accordion-toggle::after {
+      content: "−";
+    }
+    
+    .accordion-toggle::after {
+      content: "＋";
+      font-weight: bold;
+    }
+
+    /* タイムライン表示用スタイル */
+    .timeline-display {
+      background: #fff8e1;
+      border: 1px solid #ffc947;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+      line-height: 1.6;
+    }
+
+    .timeline-row {
+      display: flex;
+      margin-bottom: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .timeline-row:last-child {
+      border-bottom: none;
+    }
+
+    .timeline-event {
+      flex: 0 0 300px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+    }
+
+    .timeline-cost {
+      flex: 1;
+      padding-left: 16px;
+      font-size: 0.85rem;
+    }
+
+    .remaining-cost {
+      color: #1976d2;
+      font-weight: bold;
+    }
+
+    .cost-overflow {
+      color: #d32f2f;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <h1>ブルーアーカイブ TL作成アシスタント</h1>
-  <h2 style="margin-top: 18px; font-size: 1.1rem; color: #1976d2;">記入方法</h2>
-  <div class="muted">以下の要素を各行に含んでください：
-    <ul>
-      <li>使用タイムあるいはスキル使用前コスト（記入ない場合は最速）</li>
-      <li>スキルあるいはイベント名</li>
-      <li>スキル使用コスト（記入ない場合は0コスト扱い）</li>
-    </ul>
-コストはサンプルにあるように角かっこで囲むことが想定されています。例えば「[4]アコ[3]」は「4コスト溜まった段階で3コストを払いアコのスキルを使用する」と解釈されます。使用タイムとスキル使用前コストの両方が記入されている場合、タイムが優先されてコストは無視されます。
-<h2 style="margin-top: 18px; font-size: 1.1rem; color: #1976d2;">コスト回復バフについて</h2>
-「水着ホシノ」あるいは「水おじ」が記入されている場合自動でコスト回復バフに関するタイムスタンプが追加されます。セイアなどのスキルは順次対応予定です。
-  </div>
+  <div class="container">
+    <div class="header">
+      <h1>ブルーアーカイブ TL Assistant</h1>
+      <p class="subtitle">【超重要】未完成 - おかしいことあったら教えてください！！</p>
+    </div>
+    
+    <div class="main-content">
+      <!-- 設定パネル -->
+      <div class="settings-panel">
+        <h3 class="section-title">⚙️ 設定</h3>
+        
+        <!-- 基本設定 -->
+        <div class="settings-basic">
+          <div class="controls">
+            <span>戦闘時間：</span>
+            <button class="btn" data-tt="180">180秒</button>
+            <button class="btn" data-tt="240">240秒</button>
+            <span id="currentTT" class="muted"></span>
+          </div>
 
-<h2 style="margin-top: 18px; font-size: 1.1rem; color: #1976d2;">設定</h2>
-  <div class="total time controls">
-    <span>戦闘時間：</span>
-    <button class="btn" data-tt="180">180秒</button>
-    <button class="btn" data-tt="240">240秒</button>
-    <span id="currentTT" class="muted"></span>
-  </div>
+          <div class="controls">
+            <span>コスト回復量増加SS：</span>
+            <button class="btn" data-ss="on">オン</button>
+            <button class="btn" data-ss="off">オフ</button>
+            <span id="currentSS" class="muted"></span>
+          </div>
+          
+          <div class="controls">
+            <span>最大コスト：</span>
+            <button class="btn" data-limit="10">10</button>
+            <button class="btn" data-limit="10.5">10.5</button>
+            <button class="btn" data-limit="11">11</button>
+            <span id="currentLimit" class="muted"></span>
+          </div>
 
-  <div class="cost SS controls">
-    <span>コスト回復量増加SS：</span>
-    <button class="btn" data-ss="on">オン</button>
-    <button class="btn" data-ss="off">オフ</button>
-    <span id="currentSS" class="muted"></span>
-  </div>
-  
-  <div class="cost limit controls">
-    <span>最大コスト：</span>
-    <button class="btn" data-limit="10">10</button>
-    <button class="btn" data-limit="10.5">10.5</button>
-    <button class="btn" data-limit="11">11</button>
-    <span id="currentLimit" class="muted"></span>
-  </div>
+          <div class="controls">
+            <span>セイア固有2：</span>
+            <button class="btn" data-seia="yes">あり</button>
+            <button class="btn" data-seia="no">なし</button>
+            <span id="currentSeia" class="muted"></span>
+          </div>
 
+          <div class="controls compact">
+            <span>カノエ：</span>
+            <button class="btn small" data-kanoe="0">なし</button>
+            <button class="btn small" data-kanoe="1">本人のみ</button>
+            <button class="btn small" data-kanoe="2">本人+1</button>
+            <button class="btn small" data-kanoe="3">本人+2</button>
+            <button class="btn small" data-kanoe="4">本人+3</button>
+            <span id="currentKanoe" class="muted"></span>
+          </div>
 
-  <div class="timeline-container">
-    <div class="timeline-input-section" style="margin: 12px 0; padding: 16px; background: #f0f8ff; border-radius: 8px; border: 1px solid #b3d9ff;">
-      <h3 style="margin: 0 0 16px; font-size: 1.2rem; color: #1976d2;">タイムライン入力</h3>
-      <div style="font-size: 0.85rem; color: #666; margin-bottom: 12px; font-style: italic;">（時間表記は自動判別：経過時間，ゲーム内表記両方可）</div>
-      <div style="margin-bottom: 12px;">
-        <label for="timelineInput" style="display: block; font-weight: 600; margin-bottom: 6px;">タイムラインデータ（テキスト形式）:</label>
-        <textarea id="timelineInput" style="width: 100%; min-height: 200px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.9rem; resize: vertical; box-sizing: border-box;">2:43.212イオリ[3]
-[9.3]水着ホシノ[5]
-アイドルマリー[2]
-2:12アコ[3]
-[9.2]ヒマリ[3]
-キャンプハレNS
-1:59ミカ[6]
-1:47.567〆</textarea>
+          <div class="controls compact">
+            <span>チェリノ：</span>
+            <button class="btn small" data-cherino="0">なし</button>
+            <button class="btn small" data-cherino="1">本人のみ</button>
+            <button class="btn small" data-cherino="2">本人+1</button>
+            <button class="btn small" data-cherino="3">本人+2</button>
+            <button class="btn small" data-cherino="4">本人+3</button>
+            <span id="currentCherino" class="muted"></span>
+          </div>
+        </div>
+
+        <!-- 詳細設定（アコーディオン） -->
+        <div class="accordion">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            🔧 詳細設定
+            <span class="accordion-toggle"></span>
+          </div>
+          <div class="accordion-content">
+            <div class="controls">
+              <span>「：」のない行頭数字の解釈：</span>
+              <button class="btn" data-number="time">タイム</button>
+              <button class="btn" data-number="cost">コストタイミング</button>
+              <span id="currentNumber" class="muted"></span>
+            </div>
+            <div class="setting-comment">
+              例えば「8.2 キャンプハレ」の場合、8.2コストでハレなのか、開始8.2秒後にハレなのかを設定します。
+            </div>
+
+            <div class="controls">
+              <span>時間表示形式：</span>
+              <button class="btn" data-display="backward">ゲーム内表示</button>
+              <button class="btn" data-display="forward">経過時間</button>
+              <span id="currentDisplay" class="muted"></span>
+            </div>
+            <div class="setting-comment">
+              20.000あるいは00:20.000を、ゲーム内表示（残り時間）形式と解釈するか、経過した時間と解釈するかを設定します。
+            </div>
+
+            <div class="controls">
+              <span>+/-の解釈：</span>
+              <button class="btn" data-modifier="yes">常に秒後/秒前</button>
+              <button class="btn" data-modifier="no">表示形式に依存</button>
+              <span id="currentModifier" class="muted"></span>
+            </div>
+            <div class="setting-comment">
+              +/-を常に〇秒後/秒前と解釈するか、あるいは逆として解釈するか（ゲーム内表示の場合のみ）を設定します。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 記入方法 -->
+      <div class="accordion">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          📖 記入方法
+          <span class="accordion-toggle"></span>
+        </div>
+        <div class="accordion-content">
+          サンプルを見れば大体わかると思うので、まずサンプルを見てください。<br>
+          わからなければ以下の説明を参考にし、それでもだめならぼくに直接聞いてください。
+          <h4>許される記法</h4>
+          <ul>
+            <li>2:43 [10] ミカ [6] - 2:43.000のタイミングでミカが6コスト消費、コストタイミング指定[10]は無視される。[ ]は省略可能</li>
+            <li>[9.8] セイア [3] - 9.8コスト溜まる最も早いタイミングでセイアが3コスト消費</li>
+            <li>イブキ [3] - [3]イブキ[3]と同じ。3コストでイブキが3コスト消費</li>
+            <li>[-2]Ｃ水着ミカ[3] - コスト-2のタイミングでＣ水着ミカが3コスト消費。水着ナギサ実装により、このようなマイナス記法も許される</li>
+          </ul>
+            
+          <h4>詳細</h4>
+          <ul>
+            <li><strong>表記ゆれ</strong>: 空白、[ ]の有無、全角半角などの表記ゆれは可能な限り許すように設計されているので基本心配不要</li>
+            <li><strong>行の基本構造</strong>: （何らかの時間指定）（イベント名）（コスト消費）（ラベル設定）の構造、一部省略可能</li>
+            <li><strong>ラベル設定</strong>: 特定のタイミングに「#ミカ1」のようにラベルを設定し、その時間を起点に別の行動の時間を指定可能。「ラベル参照」を見ること</li>
+            <li><strong>ラベル参照</strong>: 行頭に「#ミカ1 +3.433」でラベルから3.433秒後、「#ミカ1 -2.167」で2.167秒前（設定で+/-の解釈反転可能）</li>
+            <li><strong>省略した場合の処理</strong>: </li>
+          </ul>
+
+          <h4>コスト回復バフ対応</h4>
+          <ul>
+            <li>以下の名前を含んでいると自動的にコスト回復力上昇バフが追加されます：</li>
+            <ul>
+              <li><strong>水着ホシノ</strong>:「水」と（「ホシノ」あるいは「おじ」）を含んでいる場合</li>
+              <li><strong>セイア</strong>: 「セイア」を含むが「水」を含まない場合</li>
+            </ul>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 操作ボタン -->
+      <div class="controls">
+        <button class="btn" onclick="triggerAutoUpdate()">🚀 タイムライン生成</button>
+        <button class="btn secondary" onclick="clearAll()">🗑️ クリア</button>
+        <button class="btn" id="autoUpdateToggle" onclick="toggleAutoUpdate()">🔄 自動更新: ON</button>
+      </div>
+      
+      <!-- セーブ/ロードボタン -->
+      <div class="controls" style="margin-top: 10px;">
+        <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-start;">
+          <span style="font-weight: bold; margin-right: 10px; line-height: 32px;">💾 セーブスロット:</span>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <button class="btn secondary" onclick="saveToSlot(1)" style="font-size: 12px; padding: 4px 8px;">保存1</button>
+            <button class="btn secondary" onclick="loadFromSlot(1)" style="font-size: 12px; padding: 4px 8px;">読込1</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <button class="btn secondary" onclick="saveToSlot(2)" style="font-size: 12px; padding: 4px 8px;">保存2</button>
+            <button class="btn secondary" onclick="loadFromSlot(2)" style="font-size: 12px; padding: 4px 8px;">読込2</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <button class="btn secondary" onclick="saveToSlot(3)" style="font-size: 12px; padding: 4px 8px;">保存3</button>
+            <button class="btn secondary" onclick="loadFromSlot(3)" style="font-size: 12px; padding: 4px 8px;">読込3</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <button class="btn secondary" onclick="saveToSlot(4)" style="font-size: 12px; padding: 4px 8px;">保存4</button>
+            <button class="btn secondary" onclick="loadFromSlot(4)" style="font-size: 12px; padding: 4px 8px;">読込4</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <button class="btn secondary" onclick="saveToSlot(5)" style="font-size: 12px; padding: 4px 8px;">保存5</button>
+            <button class="btn secondary" onclick="loadFromSlot(5)" style="font-size: 12px; padding: 4px 8px;">読込5</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <button class="btn secondary" onclick="saveToSlot(6)" style="font-size: 12px; padding: 4px 8px;">保存6</button>
+            <button class="btn secondary" onclick="loadFromSlot(6)" style="font-size: 12px; padding: 4px 8px;">読込6</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <button class="btn secondary" onclick="saveToSlot(7)" style="font-size: 12px; padding: 4px 8px;">保存7</button>
+            <button class="btn secondary" onclick="loadFromSlot(7)" style="font-size: 12px; padding: 4px 8px;">読込7</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <button class="btn secondary" onclick="saveToSlot(8)" style="font-size: 12px; padding: 4px 8px;">保存8</button>
+            <button class="btn secondary" onclick="loadFromSlot(8)" style="font-size: 12px; padding: 4px 8px;">読込8</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <button class="btn secondary" onclick="saveToSlot(9)" style="font-size: 12px; padding: 4px 8px;">保存9</button>
+            <button class="btn secondary" onclick="loadFromSlot(9)" style="font-size: 12px; padding: 4px 8px;">読込9</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <button class="btn secondary" onclick="saveToSlot(10)" style="font-size: 12px; padding: 4px 8px;">保存10</button>
+            <button class="btn secondary" onclick="loadFromSlot(10)" style="font-size: 12px; padding: 4px 8px;">読込10</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- メイン作業エリア -->
+      <div class="timeline-container">
+        <!-- 入力セクション -->
+        <div class="timeline-input-section">
+          <div class="input-section">
+            <h3 class="section-title">📝 タイムライン入力</h3>
+            <textarea id="timelineInput" placeholder="例:
+1:25 水着ホシノEX[3]
+1:23 イオリ #イオリ１射目
+#イオリ１射目 - 20.5 セイア"></textarea>
+            
+            <!-- サンプルタイムライン -->
+            <div style="margin-top: 16px;">
+              <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-start;">
+                <span style="font-weight: bold; margin-right: 10px; line-height: 32px;">サンプル:</span>
+                <button class="btn secondary" onclick="loadSampleTimeline(1)" style="font-size: 12px; padding: 4px 8px;">1</button>
+                <button class="btn secondary" onclick="loadSampleTimeline(2)" style="font-size: 12px; padding: 4px 8px;">2</button>
+                <button class="btn secondary" onclick="loadSampleTimeline(3)" style="font-size: 12px; padding: 4px 8px;">3</button>
+                <button class="btn secondary" onclick="loadSampleTimeline(4)" style="font-size: 12px; padding: 4px 8px;">4</button>
+                <button class="btn secondary" onclick="loadSampleTimeline(5)" style="font-size: 12px; padding: 4px 8px;">5</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 出力セクション -->
+        <div class="timeline-output-section">
+          <div class="output-section">
+            <h3 class="section-title">� タイムライン出力</h3>
+            
+            <!-- タイムライン表示セクション -->
+            <div class="section" id="timelineSection" style="display: none;">
+              <!-- タイムライン表示 -->
+              <div id="timelineDisplay" class="timeline-display"></div>
+              
+              <!-- テキスト出力アコーディオン -->
+              <div class="accordion">
+                <div class="accordion-header" onclick="toggleAccordion(this)">
+                  📄 テキスト形式タイムライン
+                  <span class="accordion-toggle"></span>
+                </div>
+                <div class="accordion-content">
+                  <textarea id="timelineTextOutput" readonly style="height: 200px; font-family: 'Courier New', monospace; background: #f9f9f9;"></textarea>
+                  <button class="btn secondary" onclick="copyTimelineText()" style="margin-top: 8px;">📋 コピー</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- タイムライン結果セクション -->
+      <div class="section" id="timelineResultsSection">
+        <div class="output-section">
+          <h3 class="section-title">📊 タイムライン結果</h3>
+          <div id="timelineOutput">
+            <div class="info-message">
+              左側にタイムラインを入力して「タイムライン生成」ボタンを押してください
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 詳細情報アコーディオン -->
+      <div class="accordion">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          🔍 詳細情報・デバッグ
+          <span class="accordion-toggle"></span>
+        </div>
+        <div class="accordion-content">
+          <div id="debugInfo"></div>
+        </div>
+      </div>
+
+      <!-- JSON出力アコーディオン -->
+      <div class="accordion">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          📋 JSON出力
+          <span class="accordion-toggle"></span>
+        </div>
+        <div class="accordion-content">
+          <div id="jsonOutput"></div>
+        </div>
       </div>
     </div>
-
-    <div id="timelineInfo" style="margin: 12px 0; padding: 12px; background: #fff8e1; border-radius: 6px; line-height: 1.6; border: 1px solid #ffc947;"></div>
-  </div>
-
-  <table id="resultTable">
-    <caption>詳細情報</caption>
-    <thead>
-      <tr>
-        <th>経過フレーム</th>
-        <th>経過時間(秒)</th>
-        <th>ゲーム内時間表記</th>
-        <th>イベント名</th>
-        <th>総コスト回復量</th>
-        <th>スキル使用前コスト</th>
-        <th>スキル使用コスト</th>
-        <th>スキル使用後コスト</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div class="timeline-output-section" style="margin: 24px 0; padding: 16px; background: #f9f9f9; border-radius: 8px; border: 1px solid #ddd;">
-    <h3 style="margin: 0 0 16px; font-size: 1.2rem; color: #666;">内部データ</h3>
-    <pre id="timelineOutput" style="background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 0.9rem; margin: 0; white-space: pre-wrap;"></pre>
   </div>
 
   <script>
-    // ==============================
-    // Constants per project spec
-    // ==============================
-    const FPS = 30;                       // 30 FPS
-    const COST_DENOM = 30 * 10000;        // 300,000
-
     // グローバル変数
-    let cost_limit = 10; // default
-    let costPointLimit = Math.round(cost_limit * COST_DENOM); // コスト上限のポイント表現
-    let totalTime = 180; // 戦闘時間（秒）デフォルト
-    let processedInput = null; // 処理されたタイムライン入力
+    let currentTimelineJSON = null;
+    let currentInputJSON = null;
+    let autoUpdateTimer = null;
+    let autoUpdateEnabled = true;
+    
+    // バフデータをグローバルに保存
+    let buffData = window.BUFF_DATA || null;
+    
+    // 設定変数（legacy版互換）
+    let battleTime = 180; // 戦闘時間（秒）
+    let ssEnabled = true; // SS有効フラグ
+    let maxCost = 10; // 最大コスト
+    let numberInterpretation = 'cost'; // 行頭数字の解釈
+    let timeDisplayFormat = 'backward'; // 時間表示形式
+    let modifierAlwaysForward = 'yes'; // +/-の解釈
+    let seiaKoyuu2 = 'yes'; // セイア固有2の有無（デフォルト：あり）
+    let kanoeSS = '0'; // カノエのレベル（デフォルト：なし）
+    let cherinoSS = '0'; // チェリノのレベル（デフォルト：なし）
 
-    // ==============================
-    // Sample timeline (modifiable)
-    // 各要素は { frame, cost_recovery, cost_used }
-    // - その時点以降に有効になる cost_recovery を表す（次のノード直前まで）
-    // - cost_used はそのフレーム時点で消費する「コスト（単位）」を表す
-    // ==============================
-    const timeline = [
-      { frame: 0,   student_num: 0, cost_used: 0, cost_recovery_buff_list:[] },
-      { frame: 60,  student_num: 6, cost_used: 0, cost_recovery_buff_list:[] },
-      { frame: 671, student_num: 5, cost_used: 2, cost_recovery_buff_list:[321] },
-      { frame: 724, student_num: 4, cost_used: 4, cost_recovery_buff_list:[] },
-      { frame: 832, student_num: 4, cost_used: 0, cost_recovery_buff_list:[] },
-    ];
-
-    // ==============================
-    // Core calculation
-    // ==============================
-    function computeRows() {
-      // processedInputが存在する場合はそれを使用、なければsample timelineを使用
-      const timelineData = (processedInput && processedInput.events && processedInput.events.length > 0) 
-        ? processedInput.events 
-        : timeline;
-
-      let rows = [];
-      let cost_point = 0; // integer accumulator in points
-
-      for (let i = 1; i < timelineData.length; i++) {
-        const current = timelineData[i];
-        const previous = timelineData[i - 1];
-
-        // 経過フレーム数
-        const elapsed_frames = current.frame - previous.frame;
-        
-        // 適用される cost_recovery の計算
-        const cost_recovery_SS_buff = 0.2029; // SS効果の係数
-        const base_recovery = 700; // 基礎コスト回復値
-        
-        // バフのかかっていない生徒数
-        const unbuffed_students = previous.student_num - previous.cost_recovery_buff_list.length;
-        
-        let total_cost_recovery = 0;
-        
-        // バフのかかっていない生徒のコスト回復量計算
-        if (unbuffed_students > 0) {
-          const unbuffed_base = base_recovery;
-          const unbuffed_actual = ssEnabled ? Math.round(unbuffed_base * (1 + cost_recovery_SS_buff)) : unbuffed_base;
-          total_cost_recovery += unbuffed_students * unbuffed_actual;
-        }
-        
-        // バフのかかっている生徒のコスト回復量計算
-        for (const buff of previous.cost_recovery_buff_list) {
-          // バフがオブジェクトの場合とnumberの場合の両方に対応
-          const buffValue = typeof buff === 'object' ? buff.buff_amount : buff;
-          const buffed_base = base_recovery + buffValue;
-          const buffed_actual = ssEnabled ? Math.round(buffed_base * (1 + cost_recovery_SS_buff)) : buffed_base;
-          total_cost_recovery += buffed_actual;
-        }
-        
-        const cost_recovery = total_cost_recovery;
-
-        // コストポイント増加分
-        const cost_point_before_spill = cost_point + elapsed_frames * cost_recovery;
-        // コストポイントの上限適用：コスト溢れの処理
-        cost_point = Math.min(cost_point_before_spill, costPointLimit);
-        const cost_spilled = cost_point_before_spill - cost_point; // 溢れた分を記録（将来の拡張用）
-
-        // スキル仕様前コスト
-        const cost_before = cost_point / COST_DENOM;
-
-        // 使用されるコスト
-        const cost_used = current.cost_used || 0;
-
-        // コストの使用（あるいは回復）
-        const consume_points = Math.round(cost_used * COST_DENOM);
-        cost_point = cost_point - consume_points;
-
-        // スキル使用後コスト
-        const cost_after = cost_point / COST_DENOM;
-
-        // 残りコストポイントと使用総コストポイント
-        const remaining_cost_points = costPointLimit - cost_point;
-        const total_used_cost_points = consume_points;
-
-        rows.push({
-          frame: current.frame,
-          time_sec: (current.frame / FPS),
-          elapsed_frames,
-          active_recovery: cost_recovery,
-          cost_before,
-          cost_used: cost_used,
-          cost_after,
-          cost_spilled: cost_spilled / COST_DENOM,
-          event_name: current.event_name || '', // イベント名を追加
-          remaining_cost_points: remaining_cost_points,
-          total_used_cost_points: total_used_cost_points,
-        });
-      }
-
-      return rows;
+    // 設定の自動保存・復元
+    function saveSettings() {
+      const settings = {
+        battleTime,
+        ssEnabled,
+        maxCost,
+        numberInterpretation,
+        timeDisplayFormat,
+        modifierAlwaysForward,
+        seiaKoyuu2,
+        kanoeSS,
+        cherinoSS
+      };
+      localStorage.setItem('tl-assistant-settings', JSON.stringify(settings));
     }
 
-    // ==============================
-    // Rendering
-    // ==============================
-    const tbody = document.querySelector('#resultTable tbody');
-
-    function renderTable(rows) {
-      tbody.innerHTML = '';
-      
-      // タイムライン情報を更新
-      const timelineInfoEl = document.getElementById('timelineInfo');
-      let infoHTML = '<h3 style="margin: 0 0 12px 0; font-size: 1.1rem;">タイムライン(処理済)</h3>';
-      
-      for (let index = 0; index < rows.length; index++) {
-        const r = rows[index];
-        const tr = document.createElement('tr');
-
-        // Helper for td creation with right alignment and fixed decimals if needed
-        const td = (text) => { const el = document.createElement('td'); el.textContent = text; return el; };
-
-        // 残り時間の計算（戦闘時間 - 経過時間）
-        const remainingTime = totalTime - r.time_sec;
-        const formatTime = (seconds) => {
-          if (seconds <= 0) return "00:00.000";
-          const minutes = Math.floor(seconds / 60);
-          const secs = seconds % 60;
-          const wholeSeconds = Math.floor(secs);
-          const milliseconds = Math.round((secs - wholeSeconds) * 1000);
-          return `${minutes.toString().padStart(2, '0')}:${wholeSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
-        };
-
-        // イベント名を取得（processedInputから）
-        let eventName = '';
-        if (processedInput && processedInput.events && processedInput.events[index + 1]) {
-          const currentEvent = processedInput.events[index + 1];
-          if (currentEvent && currentEvent.event_name) {
-            eventName = currentEvent.event_name;
-          }
+    function loadSettings() {
+      try {
+        const savedSettings = localStorage.getItem('tl-assistant-settings');
+        if (savedSettings) {
+          const settings = JSON.parse(savedSettings);
+          
+          // 保存された設定を復元
+          if (settings.battleTime !== undefined) battleTime = settings.battleTime;
+          if (settings.ssEnabled !== undefined) ssEnabled = settings.ssEnabled;
+          if (settings.maxCost !== undefined) maxCost = settings.maxCost;
+          if (settings.numberInterpretation !== undefined) numberInterpretation = settings.numberInterpretation;
+          if (settings.timeDisplayFormat !== undefined) timeDisplayFormat = settings.timeDisplayFormat;
+          if (settings.modifierAlwaysForward !== undefined) modifierAlwaysForward = settings.modifierAlwaysForward;
+          if (settings.seiaKoyuu2 !== undefined) seiaKoyuu2 = settings.seiaKoyuu2;
+          if (settings.kanoeSS !== undefined) kanoeSS = settings.kanoeSS;
+          if (settings.cherinoSS !== undefined) cherinoSS = settings.cherinoSS;
+          
+          console.log('設定を復元しました:', settings);
         }
-
-        // 行の情報を表示
-        const gameTimeText = formatTime(remainingTime);
-        const costBeforeText = r.cost_used > 0 ? `[${r.cost_before.toFixed(1)}]` : '';
-        const remainingCostText = r.cost_after.toFixed(2);
-        const overflowText = r.cost_spilled > 0 ? `<span class="cost-overflow">あふれたコスト：${r.cost_spilled.toFixed(2)}</span>` : '';
-        
-        infoHTML += `<div class="timeline-row">
-          <div class="timeline-event">${gameTimeText} ${costBeforeText} ${eventName}</div>
-          <div class="timeline-cost"><span class="remaining-cost">残りコスト：${remainingCostText}</span> ${overflowText}</div>
-        </div>`;
-
-        tr.appendChild(td(r.frame));
-        tr.appendChild(td(r.time_sec.toFixed(3)));          // seconds view
-        tr.appendChild(td(formatTime(remainingTime)));       // remaining time in mm:ss.fff format
-        tr.appendChild(td(r.event_name || ''));              // event name
-        tr.appendChild(td(r.active_recovery));
-        tr.appendChild(td(r.cost_before.toFixed(2)));       // cost view before use
-        tr.appendChild(td(r.cost_used));
-        tr.appendChild(td(r.cost_after.toFixed(2)));        // cost view after use
-        tbody.appendChild(tr);
+      } catch (error) {
+        console.warn('設定の復元に失敗しました:', error);
       }
-      
-      timelineInfoEl.innerHTML = infoHTML;
     }
 
-    // ==============================
-    // Controls: cost_limit selector and SS toggle
-    // ==============================
-    
-    // Cost limit controls
-    const currentLimitEl = document.getElementById('currentLimit');
-    const limitButtons = Array.from(document.querySelectorAll('.btn[data-limit]'));
-    
-    // Total time controls
-    const currentTTEl = document.getElementById('currentTT');
-    const ttButtons = Array.from(document.querySelectorAll('.btn[data-tt]'));
-    
-    // SS controls (for future implementation)
-    const currentSSEl = document.getElementById('currentSS');
-    const ssButtons = Array.from(document.querySelectorAll('.btn[data-ss]'));
-    let ssEnabled = true; // デフォルトはオン
+    // 初期化
+    document.addEventListener('DOMContentLoaded', function() {
+      // スクリプトの読み込み完了を待つ
+      setTimeout(() => {
+        console.log('Checking dependencies...');
+        console.log('window.Utilities:', typeof window.Utilities);
+        console.log('window.TLCommon:', typeof window.TLCommon);
+        console.log('window.InputProcessor:', typeof window.InputProcessor);
+        console.log('window.TLEditor:', typeof window.TLEditor);
+        console.log('window.TimelineFormatter:', typeof window.TimelineFormatter);
+        
+        // 必要なライブラリの読み込み確認
+        checkDependencies();
+        
+        // バフデータを読み込み
+        loadBuffData();
+        
+        // 保存された設定を復元
+        loadSettings();
+        
+        // 設定ボタンの初期化
+        setupSettingsButtons();
+        updateActiveButtons();
+        
+        // 自動更新のためのイベントリスナーを設定
+        setupAutoUpdate();
+        
+        // 自動更新ボタンの初期状態を設定
+        const autoUpdateButton = document.getElementById('autoUpdateToggle');
+        if (autoUpdateEnabled) {
+          autoUpdateButton.classList.add('active');
+        }
+      }, 200); // 少し長めに待機
+    });
 
-    function updateActiveButton() {
-      // Update cost limit buttons
-      limitButtons.forEach(btn => {
-        const v = Number(btn.dataset.limit);
-        btn.classList.toggle('active', v === cost_limit);
+    // バフデータの読み込み
+    function loadBuffData() {
+      // buffs.jsから直接読み込み済み
+      buffData = window.BUFF_DATA || null;
+      if (buffData) {
+        console.log('バフデータ読み込み完了:', buffData);
+      } else {
+        console.error('バフデータが見つかりません。buffs.jsが正しく読み込まれているか確認してください。');
+      }
+    }
+
+    // 自動更新の設定
+    function setupAutoUpdate() {
+      // タイムライン入力欄の変更を監視
+      const timelineInput = document.getElementById('timelineInput');
+      timelineInput.addEventListener('input', function() {
+        if (autoUpdateEnabled) {
+          clearTimeout(autoUpdateTimer);
+          autoUpdateTimer = setTimeout(() => {
+            processTimelineWithErrorHandling();
+          }, 500); // 500ms後に実行（連続入力への対応）
+        }
       });
-      currentLimitEl.textContent = `(現在: ${cost_limit})`;
-      
-      // Update total time buttons
+
+      console.log('自動更新イベントリスナーを設定しました');
+    }
+
+    // 設定ボタンの初期化
+    function setupSettingsButtons() {
+      // 戦闘時間ボタン
+      const ttButtons = Array.from(document.querySelectorAll('.btn[data-tt]'));
+      ttButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          battleTime = Number(btn.dataset.tt);
+          updateActiveButtons();
+          saveSettings(); // 設定を自動保存
+          triggerAutoUpdate();
+        });
+      });
+
+      // SSボタン
+      const ssButtons = Array.from(document.querySelectorAll('.btn[data-ss]'));
+      ssButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          ssEnabled = btn.dataset.ss === 'on';
+          updateActiveButtons();
+          saveSettings(); // 設定を自動保存
+          triggerAutoUpdate();
+        });
+      });
+
+      // 最大コストボタン
+      const limitButtons = Array.from(document.querySelectorAll('.btn[data-limit]'));
+      limitButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          maxCost = Number(btn.dataset.limit);
+          updateActiveButtons();
+          saveSettings(); // 設定を自動保存
+          triggerAutoUpdate();
+        });
+      });
+
+      // 行頭数字解釈ボタン
+      const numberButtons = Array.from(document.querySelectorAll('.btn[data-number]'));
+      numberButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          numberInterpretation = btn.dataset.number;
+          updateActiveButtons();
+          saveSettings(); // 設定を自動保存
+          triggerAutoUpdate();
+        });
+      });
+
+      // 時間表示形式ボタン
+      const displayButtons = Array.from(document.querySelectorAll('.btn[data-display]'));
+      displayButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          timeDisplayFormat = btn.dataset.display;
+          updateActiveButtons();
+          saveSettings(); // 設定を自動保存
+          triggerAutoUpdate();
+        });
+      });
+
+      // +/-解釈ボタン
+      const modifierButtons = Array.from(document.querySelectorAll('.btn[data-modifier]'));
+      modifierButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          modifierAlwaysForward = btn.dataset.modifier;
+          updateActiveButtons();
+          saveSettings(); // 設定を自動保存
+          triggerAutoUpdate();
+        });
+      });
+
+      // セイア固有2ボタン
+      const seiaButtons = Array.from(document.querySelectorAll('.btn[data-seia]'));
+      seiaButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          seiaKoyuu2 = btn.dataset.seia;
+          updateActiveButtons();
+          saveSettings(); // 設定を自動保存
+          triggerAutoUpdate();
+        });
+      });
+
+      // カノエボタン
+      const kanoeButtons = Array.from(document.querySelectorAll('.btn[data-kanoe]'));
+      kanoeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          kanoeSS = btn.dataset.kanoe;
+          updateActiveButtons();
+          saveSettings(); // 設定を自動保存
+          triggerAutoUpdate();
+        });
+      });
+
+      // チェリノボタン
+      const cherinoButtons = Array.from(document.querySelectorAll('.btn[data-cherino]'));
+      cherinoButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          cherinoSS = btn.dataset.cherino;
+          updateActiveButtons();
+          saveSettings(); // 設定を自動保存
+          triggerAutoUpdate();
+        });
+      });
+    }
+
+    // アクティブボタンの更新
+    function updateActiveButtons() {
+      // 戦闘時間ボタン
+      const ttButtons = Array.from(document.querySelectorAll('.btn[data-tt]'));
       ttButtons.forEach(btn => {
         const v = Number(btn.dataset.tt);
-        btn.classList.toggle('active', v === totalTime);
+        btn.classList.toggle('active', v === battleTime);
       });
-      currentTTEl.textContent = `(現在: ${totalTime}秒)`;
-      
-      // Update SS buttons
+      document.getElementById('currentTT').textContent = `(現在: ${battleTime}秒)`;
+
+      // SSボタン
+      const ssButtons = Array.from(document.querySelectorAll('.btn[data-ss]'));
       ssButtons.forEach(btn => {
         const isOn = btn.dataset.ss === 'on';
         btn.classList.toggle('active', isOn === ssEnabled);
       });
-      currentSSEl.textContent = `(現在: ${ssEnabled ? 'オン' : 'オフ'})`;
+      document.getElementById('currentSS').textContent = `(現在: ${ssEnabled ? 'オン' : 'オフ'})`;
+
+      // 最大コストボタン
+      const limitButtons = Array.from(document.querySelectorAll('.btn[data-limit]'));
+      limitButtons.forEach(btn => {
+        const v = Number(btn.dataset.limit);
+        btn.classList.toggle('active', v === maxCost);
+      });
+      document.getElementById('currentLimit').textContent = `(現在: ${maxCost})`;
+
+      // 行頭数字解釈ボタン
+      const numberButtons = Array.from(document.querySelectorAll('.btn[data-number]'));
+      numberButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.number === numberInterpretation);
+      });
+      document.getElementById('currentNumber').textContent = `(現在: ${numberInterpretation === 'time' ? 'タイム' : 'コストタイミング'})`;
+
+      // 時間表示形式ボタン
+      const displayButtons = Array.from(document.querySelectorAll('.btn[data-display]'));
+      displayButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.display === timeDisplayFormat);
+      });
+      document.getElementById('currentDisplay').textContent = `(現在: ${timeDisplayFormat === 'backward' ? 'ゲーム内表示' : '経過時間'})`;
+
+      // +/-解釈ボタン
+      const modifierButtons = Array.from(document.querySelectorAll('.btn[data-modifier]'));
+      modifierButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.modifier === modifierAlwaysForward);
+      });
+      document.getElementById('currentModifier').textContent = `(現在: ${modifierAlwaysForward === 'yes' ? '常に秒後/秒前' : '表示形式に依存'})`;
+
+      // セイア固有2ボタン
+      const seiaButtons = Array.from(document.querySelectorAll('.btn[data-seia]'));
+      seiaButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.seia === seiaKoyuu2);
+      });
+      document.getElementById('currentSeia').textContent = `(現在: ${seiaKoyuu2 === 'yes' ? 'あり' : 'なし'})`;
+
+      // カノエボタン
+      const kanoeButtons = Array.from(document.querySelectorAll('.btn[data-kanoe]'));
+      kanoeButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.kanoe === kanoeSS);
+      });
+      const kanoeLabels = {
+        '0': 'なし',
+        '1': '本人のみ',
+        '2': '本人+1',
+        '3': '本人+2',
+        '4': '本人+3'
+      };
+      document.getElementById('currentKanoe').textContent = `(現在: ${kanoeLabels[kanoeSS] || 'なし'})`;
+
+      // チェリノボタン
+      const cherinoButtons = Array.from(document.querySelectorAll('.btn[data-cherino]'));
+      cherinoButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.cherino === cherinoSS);
+      });
+      const cherinoLabels = {
+        '0': 'なし',
+        '1': '本人のみ',
+        '2': '本人+1',
+        '3': '本人+2',
+        '4': '本人+3'
+      };
+      document.getElementById('currentCherino').textContent = `(現在: ${cherinoLabels[cherinoSS] || 'なし'})`;
     }
 
-    function recalcAndRender() {
-      const rows = computeRows();
-      renderTable(rows);
-      updateActiveButton();
+    // 自動更新のトリガー
+    function triggerAutoUpdate() {
+      if (autoUpdateEnabled) {
+        clearTimeout(autoUpdateTimer);
+        autoUpdateTimer = setTimeout(() => {
+          processTimelineWithErrorHandling();
+        }, 100); // 設定変更はすぐに反映
+      }
     }
 
-    // Cost limit button event listeners
-    limitButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        cost_limit = Number(btn.dataset.limit);
-        costPointLimit = Math.round(cost_limit * COST_DENOM); // 変数を更新
-        recalcAndRender();
-      });
-    });
-    
-    // Total time button event listeners
-    ttButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        totalTime = Number(btn.dataset.tt);
-        // processedInputが存在する場合はtotalTimeを更新し、タイムライン入力を再処理
-        if (processedInput) {
-          updateTimelineOutput();
+    // エラーハンドリング付きのタイムライン処理（自動更新用）
+    async function processTimelineWithErrorHandling() {
+      try {
+        const input = document.getElementById('timelineInput').value.trim();
+        if (input) {
+          // 自動更新中であることを示すフラグ
+          const isAutoUpdate = true;
+          await processTimeline(isAutoUpdate);
         } else {
-          recalcAndRender();
+          // 入力が空の場合は結果をクリア
+          document.getElementById('timelineOutput').innerHTML = '<div class="info-message">タイムラインを入力してください</div>';
+          document.getElementById('timelineSection').style.display = 'none';
+          document.getElementById('debugInfo').innerHTML = '';
+          document.getElementById('jsonOutput').innerHTML = '';
         }
-      });
-    });
-    
-    // SS button event listeners
-    ssButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        ssEnabled = btn.dataset.ss === 'on';
-        // processedInputが存在する場合はタイムライン入力を再処理
-        if (processedInput) {
-          updateTimelineOutput();
-        } else {
-          recalcAndRender();
-        }
-      });
-    });
+      } catch (error) {
+        console.warn('自動更新中にエラーが発生しました:', error);
+        // 自動更新でのエラーは静かに処理（ユーザーに警告は表示しない）
+      }
+    }
 
-    // ==============================
-    // Special character processing functionality
-    // ==============================
-    
-    /**
-     * イベント名処理と特殊キャラクター処理を行う関数
-     * @param {string} rawEventName - 生のイベント名
-     * @param {number} frame - イベントが発生するフレーム数
-     * @returns {Array} costRecoveryBuff配列
-     */
-    function processEventName(rawEventName, frame) {
-      // イベント名処理（EX削除）
-      const processedEventName = rawEventName ? rawEventName.replace(/EX/g, '') : '';
+    // 依存ライブラリの確認
+    function checkDependencies() {
+      const missing = [];
+      const details = [];
       
-      const costRecoveryBuff = [];
-      
-      // 水着ホシノ特例処理
-      if (processedEventName && 
-          ((processedEventName.includes('水着') && processedEventName.includes('ホシノ')) || 
-           processedEventName.includes('水おじ'))) {
-        costRecoveryBuff.push({
-          buff_name: '水着ホシノEX',
-          buff_start: frame + 21,
-          buff_end: frame + 21 + (30 * 50),
-          buff_amount: 684
-        });
+      // utilities.jsの確認
+      if (typeof window.Utilities === 'undefined') {
+        missing.push('utilities.js');
+        details.push('window.Utilities が undefined');
+      } else {
+        details.push('✓ utilities.js OK');
       }
       
-      // 今後、他のキャラクターの特殊処理をここに追加
-      // 例: アコ、ミカ、など
+      // tl-common.jsの確認
+      if (typeof window.TLCommon === 'undefined') {
+        missing.push('tl-common.js');
+        details.push('window.TLCommon が undefined');
+      } else {
+        details.push('✓ tl-common.js OK');
+      }
       
-      return costRecoveryBuff;
+      // input-processor.jsの確認
+      if (typeof window.InputProcessor === 'undefined') {
+        missing.push('input-processor.js');
+        details.push('window.InputProcessor が undefined');
+      } else {
+        if (typeof window.InputProcessor.createInputJSON === 'undefined') {
+          missing.push('input-processor.js (createInputJSON関数なし)');
+          details.push('window.InputProcessor.createInputJSON が undefined');
+        } else {
+          details.push('✓ input-processor.js OK');
+        }
+      }
+      
+      // tl-editor.jsの確認
+      if (typeof window.TLEditor === 'undefined') {
+        missing.push('tl-editor.js');
+        details.push('window.TLEditor が undefined');
+      } else {
+        // TimelineProcessorクラスの存在確認
+        if (typeof window.TLEditor.TimelineProcessor === 'undefined') {
+          missing.push('tl-editor.js (TimelineProcessorクラスなし)');
+          details.push('window.TLEditor.TimelineProcessor が undefined');
+        } else {
+          details.push('✓ tl-editor.js OK (TimelineProcessor利用可能)');
+        }
+      }
+
+      // timeline-formatter.jsの確認
+      if (typeof window.TimelineFormatter === 'undefined') {
+        missing.push('timeline-formatter.js');
+        details.push('window.TimelineFormatter が undefined');
+      } else {
+        if (typeof window.TimelineFormatter.generateTimelineHTML === 'undefined') {
+          missing.push('timeline-formatter.js (generateTimelineHTML関数なし)');
+          details.push('window.TimelineFormatter.generateTimelineHTML が undefined');
+        } else {
+          details.push('✓ timeline-formatter.js OK');
+        }
+      }
+      
+      // 詳細情報をコンソールに出力
+      console.log('Dependencies check:', details);
+      
+      if (missing.length > 0) {
+        const errorMsg = `必要なライブラリが読み込まれていません: ${missing.join(', ')}\n\n詳細:\n${details.join('\n')}`;
+        showMessage(errorMsg, 'error');
+        return false;
+      }
+      
+      return true;
     }
 
-    // ==============================
-    // Timeline input functionality
-    // ==============================
-    const timelineInput = document.getElementById('timelineInput');
-    const timelineOutput = document.getElementById('timelineOutput');
-
-    // 入力時にリアルタイムで更新
-    function updateTimelineOutput() {
-      // 1. 入力をパースして方向性を判定
-      const inputEvents = parseTimelineToJSON(timelineInput.value);
-      const direction = detectTimelineDirection(inputEvents);
-      
-      // 方向性に応じた時間表記の説明
-      const timeNotation = direction === 'forward' 
-        ? '時間表記: 経過時間での表記' 
-        : '時間表記: ゲーム内時間表記（残り時間）';
-      
-      // 2. イベントリストを処理
-      const convertedEvents = processEventsWithBuffHandling(inputEvents, direction);
-      
-      // 3. デフォルトイベントを追加
-      const defaultEvents = [
-        {
-          frame: 0,
-          student_num: 0,
-          cost_used: 0,
-          cost_recovery_buff_list: [],
-          event_name: 'タイム計測開始'
-        },
-        {
-          frame: 60,
-          student_num: 6,
-          cost_used: 0,
-          cost_recovery_buff_list: [],
-          event_name: '戦闘開始'
+    // メイン処理関数
+    async function processTimeline(isAutoUpdate = false) {
+      try {
+        // 依存関係の確認
+        if (!checkDependencies()) {
+          return;
         }
-      ];
+
+        // バフデータが読み込まれていない場合は読み込む
+        if (!buffData) {
+          console.log('バフデータが未読み込みのため、読み込み中...');
+          loadBuffData();
+        }
+
+        const input = document.getElementById('timelineInput').value.trim();
+        console.log('入力データ:', JSON.stringify(input));
+        
+        if (!input) {
+          if (!isAutoUpdate) {
+            showMessage('タイムラインを入力してください', 'error');
+          }
+          return;
+        }
+
+        ///////////////////////////////////////////////////////
+        // 【重要】この部分で設定を取得し、この部分を各種処理関数に渡す
+        ///////////////////////////////////////////////////////
+        const settings = {
+          max_cost: maxCost,
+          battle_time: battleTime,
+          number_interpretation: numberInterpretation,
+          time_display_format: timeDisplayFormat,
+          modifier_always_forward: modifierAlwaysForward,
+          ss_enabled: ssEnabled,
+          seia_koyuu2: seiaKoyuu2,
+          kanoe_ss: kanoeSS,
+          cherino_ss: cherinoSS
+        };
+
+        // 入力処理
+        try {
+          console.log('InputProcessor.createInputJSON 実行開始');
+          const processedTimeline = window.InputProcessor.createInputJSON(input, settings);
+          console.log('処理された入力データ:', processedTimeline);
+          
+          if (!processedTimeline || processedTimeline.length === 0) {
+            throw new Error('入力処理の結果が空です');
+          }
+          
+          currentInputJSON = {
+            timeline: processedTimeline,
+            metadata: {
+              input_length: processedTimeline.length,
+              processed_at: new Date().toISOString()
+            }
+          };
+          console.log('currentInputJSON:', currentInputJSON);
+          if (!isAutoUpdate) {
+            showMessage('入力処理完了', 'success');
+          }
+        } catch (inputError) {
+          throw new Error(`入力処理エラー: ${inputError.message}`);
+        }
+
+        // タイムライン生成
+        try {
+          // 新しいTimelineProcessorクラスを使用
+          console.log('TimelineProcessor作成時のbuffData:', buffData);
+          const processor = new window.TLEditor.TimelineProcessor(currentInputJSON, settings, buffData);
+          currentTimelineJSON = processor.createTimelineJSON();
+          
+          console.log('生成されたtimeline_json:', currentTimelineJSON);
+          console.log('additional_events:', currentTimelineJSON.additional_events);
+          
+          if (!isAutoUpdate) {
+            showMessage('タイムライン生成完了', 'success');
+          }
+        } catch (timelineError) {
+          throw new Error(`タイムライン生成エラー: ${timelineError.message}`);
+        }
+
+        // 結果表示
+        displayTimelineResults(currentTimelineJSON);
+        displayDebugInfo(currentInputJSON, currentTimelineJSON);
+        displayJSONOutput(currentTimelineJSON);
+
+      } catch (error) {
+        if (!isAutoUpdate) {
+          showMessage(`エラー: ${error.message}`, 'error');
+        }
+        console.error('タイムライン処理エラー:', error);
+      }
+    }
+
+    // 結果表示
+    function displayTimelineResults(timelineJSON) {
+      // タイムラインセクションを表示
+      document.getElementById('timelineSection').style.display = 'block';
       
-      // 4. 最終的なイベント配列を作成
-      const allEvents = [...defaultEvents, ...convertedEvents];
+      // HTMLタイムライン表示
+      try {
+        const result = window.TimelineFormatter.generateTimelineNew(timelineJSON, {
+          battle_time: battleTime
+        });
+        document.getElementById('timelineDisplay').innerHTML = result.html;
+      } catch (error) {
+        console.error('タイムラインHTML生成エラー:', error);
+        document.getElementById('timelineDisplay').innerHTML = '<p>タイムライン表示でエラーが発生しました: ' + error.message + '</p>';
+      }
       
-      // 5. フレーム順にソート
-      allEvents.sort((a, b) => a.frame - b.frame);
+      // テキストタイムライン生成
+      try {
+        const result = window.TimelineFormatter.generateTimelineNew(timelineJSON, {
+          battle_time: battleTime
+        });
+        document.getElementById('timelineTextOutput').value = result.text;
+      } catch (error) {
+        console.error('タイムラインテキスト生成エラー:', error);
+        document.getElementById('timelineTextOutput').value = 'タイムラインテキスト生成でエラーが発生しました: ' + error.message;
+      }
       
-      // 6. グローバル変数を更新
-      processedInput = {
-        direction: direction,
-        totalTime: totalTime,
-        events: allEvents
+      const output = document.getElementById('timelineOutput');
+      
+      // コストポイント解説を追加
+      let html = `<table>
+          <thead>
+            <tr>
+              <th>経過時間</th>
+              <th>フレーム</th>
+              <th>イベント名</th>
+              <th>使用コスト</th>
+              <th>使用前コスト</th>
+              <th>あふれたコスト</th>
+              <th>残りコストポイント</th>
+              <th>総コスト回復力</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      for (const event of timelineJSON.timeline) {
+        const costPoints = event.remaining_cost_points !== undefined ? event.remaining_cost_points.toLocaleString() : 'N/A';
+        const totalCostRecovery = event.total_cost_recovery !== undefined ? event.total_cost_recovery.toLocaleString() : 'N/A';
+        // timeプロパティがない場合はframeから計算
+        const eventTime = event.time !== undefined ? event.time : (event.frame / 30);
+        
+        // あふれたコスト（オーバーフロー）の表示
+        const overflowCost = event.overflow_cost !== undefined ? event.overflow_cost.toFixed(1) : '0.0';
+        const overflowDisplay = parseFloat(overflowCost) > 0 ? 
+          `<span class="cost-overflow">${overflowCost}</span>` : overflowCost;
+        
+        html += `
+          <tr>
+            <td>${eventTime.toFixed(3)}</td>
+            <td>${event.frame}</td>
+            <td style="text-align: left;">${event.event_name}</td>
+            <td>${event.cost_used.toFixed(1)}</td>
+            <td>${event.current_cost_display_only.toFixed(1)}</td>
+            <td>${overflowDisplay}</td>
+            <td style="color: #059669; font-family: monospace;">${costPoints}</td>
+            <td style="color: #1976d2; font-family: monospace;">${totalCostRecovery}</td>
+          </tr>
+        `;
+      }
+
+      html += `
+          </tbody>
+        </table>
+        
+        <div class="setting-comment">
+          コストポイントとは、自分が推測するブルアカ内部での整数値に基づくコスト計算方法で、1コストは300,000コストポイントです。
+        </div>
+      `;
+
+      // 追加イベント表示
+      if (timelineJSON.additional_events.length > 0) {
+        html += `
+          <h4>🎭 追加イベント（コスト回復バフ等）</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>開始経過時間</th>
+                <th>終了経過時間</th>
+                <th>イベント名</th>
+                <th>継続時間</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        // AI用指示：最終的にframesToSecondsがhtml内に入り込むのは望ましくない
+        // 可能であればいずれこの部分の処理をjsファイル内で行う
+        // ただしこの部分は必須ではないので、後回しにしても良い
+        for (const event of timelineJSON.additional_events) {
+          const startTime = window.Utilities.framesToSeconds(event.start_frame).toFixed(3);
+          const endTime = window.Utilities.framesToSeconds(event.end_frame).toFixed(3);
+          const duration = (event.duration / 1000).toFixed(3);
+          
+          html += `
+            <tr>
+              <td>${startTime}s</td>
+              <td>${endTime}s</td>
+              <td style="text-align: left;">${event.event_name}</td>
+              <td>${duration}s</td>
+            </tr>
+          `;
+        }
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      }
+
+      output.innerHTML = html;
+    }
+
+    // デバッグ情報表示
+    function displayDebugInfo(inputJSON, timelineJSON) {
+      const debug = document.getElementById('debugInfo');
+      
+      let html = `
+        <h4>🔧 入力JSON構造</h4>
+        <div class="json-output">${JSON.stringify(inputJSON, null, 2)}</div>
+        
+        <h4>📊 処理統計</h4>
+        <ul>
+          <li>入力行数: ${inputJSON.timeline.length}</li>
+          <li>ラベル数: ${Object.keys(inputJSON.labels || {}).length}</li>
+          <li>参照解決数: ${inputJSON.timeline.filter(row => row.reference).length}</li>
+          <li>コスト計算行数: ${inputJSON.timeline.filter(row => row.cost > 0).length}</li>
+        </ul>
+      `;
+
+      debug.innerHTML = html;
+    }
+
+    // JSON出力表示
+    function displayJSONOutput(timelineJSON) {
+      const output = document.getElementById('jsonOutput');
+      output.innerHTML = `
+        <div class="json-output">${JSON.stringify(timelineJSON, null, 2)}</div>
+        <button class="btn" onclick="copyToClipboard()" style="margin-top: 12px;">📋 クリップボードにコピー</button>
+      `;
+    }
+
+    // ユーティリティ関数
+    function showMessage(text, type = 'info') {
+      // 既存のメッセージを削除
+      const existing = document.querySelector('.error-message, .success-message, .info-message');
+      if (existing) existing.remove();
+
+      const div = document.createElement('div');
+      div.className = `${type}-message`;
+      div.textContent = text;
+      
+      // エラーメッセージの場合は閉じるボタンを追加
+      if (type === 'error') {
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.cssText = 'float: right; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: inherit;';
+        closeBtn.onclick = () => div.remove();
+        div.appendChild(closeBtn);
+        div.style.paddingRight = '40px';
+      } else {
+        // 成功メッセージは3秒後に自動削除
+        setTimeout(() => div.remove(), 3000);
+      }
+      
+      document.querySelector('.main-content').insertBefore(div, document.querySelector('.timeline-container'));
+    }
+
+    function toggleAccordion(header) {
+      const accordion = header.parentElement;
+      accordion.classList.toggle('open');
+    }
+
+    function clearAll() {
+      document.getElementById('timelineInput').value = '';
+      document.getElementById('timelineOutput').innerHTML = '<div class="info-message">タイムラインをクリアしました</div>';
+      document.getElementById('debugInfo').innerHTML = '';
+      document.getElementById('jsonOutput').innerHTML = '';
+      document.getElementById('timelineSection').style.display = 'none';
+      currentTimelineJSON = null;
+      currentInputJSON = null;
+      
+      // タイマーもクリア
+      clearTimeout(autoUpdateTimer);
+    }
+
+    // サンプルタイムライン読み込み関数
+    // AI向け指示：サンプルは変えないでください
+    function loadSampleTimeline(sampleNumber) {
+      let sample = '';
+      
+      switch(sampleNumber) {
+        case 1:
+          sample = `シュンNS -3.8 コスト回復表現可
+[5]ナギサ 3 固有2ない場合6コス
+[7]リオ 2
+#seia - 1.900 本アリス 4 #a
+カンナ[2] 順不同、スキルカードガチャ回避
+02:37.800 水着セイア[3] #seia 
+#a+4.000 Ｃアリス 3 #a2
+#a2+4 本アリス 4 #a3
+#a3+2.833 〆
+
+## セイアのタイム指定を[3]にするとエラーが出ます。試してみてください`;
+          break;
+          
+        case 2:
+          sample = `
+水着ホシノ[5]
+セイア[3]
+リオ[2]
+キサキ[3]
+[6]ミカ[3] #ミカ1
+ドアル[3]
+#ミカ1 +1.1 Ｃミカ[3] #ミカ2
+セイア[3]
+#ミカ2 +1.3 ミカ[3] #ミカ3`;
+          break;
+          
+        case 3:
+          sample = `1:15.867 イブキ[3] #イブキ
+2:02.433 イロハ 6 #イロハ
+[5.85]サツキ 5
+[0.1]チアキ 6 #チアキ
+#イロハ - 2.5 マコト 6 #イロハ2
+#サツキ+1.1 イブキ 3`;;
+          break;
+          
+        case 4:
+          sample = `セイア[3]
+ハレキャンプ[2]
+水着ホシノ[5]
+セイア[3]
+ハレキャンプ[2]
+セイア[3]
+ハレキャンプ[2]
+セイア[3]
+ハレキャンプ[2]
+水着ヒフミ[10]
+セイア[3]
+ハレキャンプ[2]
+セイア[3]
+ハレキャンプ[2]`;
+          break;
+          
+        case 5:
+          sample = `水着ホシノ[5]
+[9.95]ミカ[6]
+キサキ[3]
+アコ[3]
+水着ホシノ[5]
+バンドヨシミ[10]
+[9.95]ミカ[6]
+キサキ[3]
+アコ[3]
+水着ホシノ[5]`;
+          break;
+          
+        default:
+          sample = '';
+      }
+      
+      if (sample) {
+        document.getElementById('timelineInput').value = sample;
+        showMessage(`サンプル${sampleNumber}を読み込みました`, 'success');
+        
+        // 自動更新を使用して処理を実行
+        triggerAutoUpdate();
+      }
+    }
+
+    // 自動更新の切り替え
+    function toggleAutoUpdate() {
+      autoUpdateEnabled = !autoUpdateEnabled;
+      const button = document.getElementById('autoUpdateToggle');
+      
+      if (autoUpdateEnabled) {
+        button.textContent = '🔄 自動更新: ON';
+        button.classList.add('active');
+        showMessage('自動更新を有効にしました', 'success');
+        
+        // 自動更新を有効にした時に現在の内容で即座に更新
+        const input = document.getElementById('timelineInput').value.trim();
+        if (input) {
+          triggerAutoUpdate();
+        }
+      } else {
+        button.textContent = '🔄 自動更新: OFF';
+        button.classList.remove('active');
+        showMessage('自動更新を無効にしました', 'info');
+        
+        // タイマーをクリア
+        clearTimeout(autoUpdateTimer);
+      }
+    }
+
+    // スロット別ローカルストレージに保存
+    function saveToSlot(slotNumber) {
+      const inputText = document.getElementById('timelineInput').value;
+      if (!inputText.trim()) {
+        showMessage('保存するデータがありません', 'error');
+        return;
+      }
+      
+      // 既存データがある場合は上書き確認
+      const existingData = localStorage.getItem(`tl-assistant-slot-${slotNumber}`);
+      if (existingData) {
+        const existing = JSON.parse(existingData);
+        const confirmMessage = `スロット${slotNumber}には既にデータが保存されています。\n` +
+                             `保存日時: ${existing.timestamp}\n` +
+                             `プレビュー: ${existing.preview}\n\n` +
+                             `上書きしますか？`;
+        if (!confirm(confirmMessage)) {
+          return;
+        }
+      }
+      
+      const saveData = {
+        data: inputText,
+        timestamp: new Date().toLocaleString('ja-JP'),
+        preview: inputText.substring(0, 50) + (inputText.length > 50 ? '...' : '')
       };
       
-      // 計算とレンダリングを再実行
-      recalcAndRender();
-      
-      timelineOutput.textContent = timeNotation + '\n\n' + JSON.stringify(processedInput, null, 2);
-    }
-    
-    /**
-     * イベントリストをバフ処理と時間逆算を含めて処理する
-     * @param {Array} inputEvents - 入力イベントリスト
-     * @param {string} direction - 時間の方向性
-     * @returns {Array} 処理済みイベントリスト
-     */
-    function processEventsWithBuffHandling(inputEvents, direction) {
-      const result = [];
-      let currentBuffs = [];
-      
-      for (const event of inputEvents) {
-        // フレーム計算
-        let frame;
-        if (event.time !== null) {
-          // 時間が指定されている場合
-          if (direction === 'forward') {
-            frame = Math.round(event.time * 30);
-          } else {
-            frame = Math.round((totalTime - event.time) * 30);
-          }
-        } else {
-          // 時間がnullの場合、コストから逆算
-          if (event.cost_before_use !== null) {
-            frame = calculateFrameFromCost(event.cost_before_use, currentBuffs, result);
-          } else {
-            frame = 0; // フォールバック
-          }
-        }
-        
-        // バフ開始・終了イベントを挿入
-        const { updatedResult, updatedBuffs } = insertBuffEvents(result, currentBuffs, frame);
-        result.splice(0, result.length, ...updatedResult);
-        currentBuffs = updatedBuffs;
-        
-        // 新しいバフを処理
-        const newBuffs = processEventName(event.event_name, frame);
-        currentBuffs = [...currentBuffs, ...newBuffs];
-        
-        // メインイベントを追加
-        result.push({
-          frame: frame,
-          student_num: 6,
-          cost_used: event.cost_used || 0,
-          cost_recovery_buff_list: [...currentBuffs],
-          event_name: event.event_name
-        });
-      }
-      
-      return result;
-    }
-    
-    /**
-     * 指定されたコストに達するフレームを逆算（再帰処理）
-     * @param {number} targetCost - 目標コスト
-     * @param {Array} currentBuffs - 現在のバフ状況
-     * @param {Array} eventsSoFar - ここまでのイベントリスト
-     * @returns {number} フレーム数
-     */
-    function calculateFrameFromCost(targetCost, currentBuffs, eventsSoFar) {
-      // これまでのイベントから開始点を計算
-      let startFrame = 60; // 戦闘開始フレーム
-      let accumulatedCost = 0;
-      
-      if (eventsSoFar.length > 0) {
-        // 最新のイベントの状況をシミュレート
-        const simulation = simulateCostAtFrame(eventsSoFar);
-        startFrame = simulation.lastFrame;
-        accumulatedCost = simulation.costAtLastFrame;
-      }
-      
-      return calculateFrameFromCostRecursive(targetCost, currentBuffs, eventsSoFar, startFrame, accumulatedCost);
-    }
-    
-    /**
-     * 指定されたイベントリストでのコスト状況をシミュレート
-     * @param {Array} events - イベントリスト
-     * @returns {Object} 最終フレームとそこでのコスト
-     */
-    function simulateCostAtFrame(events) {
-      let cost_point = 0;
-      let lastFrame = 60; // 戦闘開始
-      
-      // デフォルトイベントを含めてソート
-      const allEvents = [
-        { frame: 0, student_num: 0, cost_used: 0, cost_recovery_buff_list: [] },
-        { frame: 60, student_num: 6, cost_used: 0, cost_recovery_buff_list: [] },
-        ...events
-      ].sort((a, b) => a.frame - b.frame);
-      
-      for (let i = 1; i < allEvents.length; i++) {
-        const current = allEvents[i];
-        const previous = allEvents[i - 1];
-        
-        const elapsed_frames = current.frame - previous.frame;
-        const costRecovery = calculateCostRecoveryForEvent(previous);
-        
-        // コスト蓄積
-        const cost_point_before_spill = cost_point + elapsed_frames * costRecovery;
-        cost_point = Math.min(cost_point_before_spill, costPointLimit);
-        
-        // コスト使用
-        const consume_points = Math.round((current.cost_used || 0) * COST_DENOM);
-        cost_point = cost_point - consume_points;
-        
-        lastFrame = current.frame;
-      }
-      
-      return {
-        lastFrame: lastFrame,
-        costAtLastFrame: cost_point / COST_DENOM
-      };
-    }
-    
-    /**
-     * イベント用のコスト回復量計算（computeRowsと同じロジック）
-     * @param {Object} event - イベントオブジェクト
-     * @returns {number} フレーム当たりコスト回復量
-     */
-    function calculateCostRecoveryForEvent(event) {
-      const base_recovery = 700;
-      const cost_recovery_SS_buff = 0.2029;
-      
-      const unbuffed_students = event.student_num - event.cost_recovery_buff_list.length;
-      let total_cost_recovery = 0;
-      
-      // バフのかかっていない生徒
-      if (unbuffed_students > 0) {
-        const unbuffed_actual = ssEnabled ? Math.round(base_recovery * (1 + cost_recovery_SS_buff)) : base_recovery;
-        total_cost_recovery += unbuffed_students * unbuffed_actual;
-      }
-      
-      // バフのかかっている生徒
-      for (const buff of event.cost_recovery_buff_list) {
-        const buffValue = typeof buff === 'object' ? buff.buff_amount : buff;
-        const buffed_base = base_recovery + buffValue;
-        const buffed_actual = ssEnabled ? Math.round(buffed_base * (1 + cost_recovery_SS_buff)) : buffed_base;
-        total_cost_recovery += buffed_actual;
-      }
-      
-      return total_cost_recovery;
-    }
-    
-    /**
-     * コストからフレーム逆算の再帰処理
-     * @param {number} targetCost - 目標コスト
-     * @param {Array} currentBuffs - 現在のバフ状況
-     * @param {Array} eventsSoFar - ここまでのイベントリスト
-     * @param {number} startFrame - 開始フレーム
-     * @param {number} accumulatedCost - 累積コスト
-     * @returns {number} フレーム数
-     */
-    function calculateFrameFromCostRecursive(targetCost, currentBuffs, eventsSoFar, startFrame, accumulatedCost) {
-      // 現在のバフ状況でのコスト回復量を計算
-      const activeBuffs = currentBuffs.filter(buff => 
-        buff.buff_start <= startFrame && buff.buff_end > startFrame
-      );
-      
-      // 次のバフイベント（開始または終了）を見つける
-      const nextBuffEvent = findNextBuffEvent(currentBuffs, startFrame);
-      
-      if (nextBuffEvent === null) {
-        // バフイベントがない場合、単純に計算
-        const costRecovery = calculateCostRecoveryWithBuffs(activeBuffs);
-        const remainingCost = (targetCost * COST_DENOM) - (accumulatedCost * COST_DENOM);
-        
-        if (remainingCost <= 0) {
-          return startFrame; // 既に目標に達している
-        }
-        
-        const framesNeeded = Math.ceil(remainingCost / costRecovery);
-        return startFrame + framesNeeded;
-      }
-      
-      // 次のバフイベントまでのコスト計算
-      const framesToBuffEvent = nextBuffEvent.frame - startFrame;
-      const costRecovery = calculateCostRecoveryWithBuffs(activeBuffs);
-      const costAtBuffEvent = accumulatedCost + (framesToBuffEvent * costRecovery / COST_DENOM);
-      
-      if (costAtBuffEvent >= targetCost) {
-        // 目標コストに達した場合
-        const remainingCost = (targetCost * COST_DENOM) - (accumulatedCost * COST_DENOM);
-        
-        if (remainingCost <= 0) {
-          return startFrame; // 既に目標に達している
-        }
-        
-        const framesNeeded = Math.ceil(remainingCost / costRecovery);
-        return startFrame + framesNeeded;
-      }
-      
-      // 目標コストに達していない場合、バフイベント後の状況で再帰
-      let newBuffs = [...currentBuffs];
-      if (nextBuffEvent.type === 'end') {
-        // バフ終了の場合、該当バフを削除
-        newBuffs = newBuffs.filter(buff => 
-          !(buff.buff_name === nextBuffEvent.buff.buff_name && 
-            buff.buff_start === nextBuffEvent.buff.buff_start)
-        );
-      }
-      
-      return calculateFrameFromCostRecursive(
-        targetCost, 
-        newBuffs, 
-        eventsSoFar, 
-        nextBuffEvent.frame, 
-        Math.min(costAtBuffEvent, costPointLimit / COST_DENOM) // コスト上限を適用
-      );
-    }
-    
-    /**
-     * 指定されたバフでのコスト回復量を計算
-     * @param {Array} activeBuffs - アクティブなバフリスト
-     * @returns {number} フレーム当たりコスト回復量
-     */
-    function calculateCostRecoveryWithBuffs(activeBuffs) {
-      const base_recovery = 700;
-      const cost_recovery_SS_buff = 0.2029;
-      
-      const unbuffed_students = 6 - activeBuffs.length;
-      let total_cost_recovery = 0;
-      
-      // バフのかかっていない生徒
-      if (unbuffed_students > 0) {
-        const unbuffed_actual = ssEnabled ? Math.round(base_recovery * (1 + cost_recovery_SS_buff)) : base_recovery;
-        total_cost_recovery += unbuffed_students * unbuffed_actual;
-      }
-      
-      // バフのかかっている生徒
-      for (const buff of activeBuffs) {
-        const buffValue = typeof buff === 'object' ? buff.buff_amount : buff;
-        const buffed_base = base_recovery + buffValue;
-        const buffed_actual = ssEnabled ? Math.round(buffed_base * (1 + cost_recovery_SS_buff)) : buffed_base;
-        total_cost_recovery += buffed_actual;
-      }
-      
-      return total_cost_recovery;
-    }
-    
-    /**
-     * 次のバフイベント（開始または終了）を見つける
-     * @param {Array} buffs - バフリスト
-     * @param {number} currentFrame - 現在のフレーム
-     * @returns {Object|null} 次のバフイベント
-     */
-    function findNextBuffEvent(buffs, currentFrame) {
-      let nextEvent = null;
-      let minFrame = Infinity;
-      
-      for (const buff of buffs) {
-        // バフ開始イベント
-        if (buff.buff_start > currentFrame && buff.buff_start < minFrame) {
-          nextEvent = { frame: buff.buff_start, type: 'start', buff };
-          minFrame = buff.buff_start;
-        }
-        // バフ終了イベント
-        if (buff.buff_end > currentFrame && buff.buff_end < minFrame) {
-          nextEvent = { frame: buff.buff_end, type: 'end', buff };
-          minFrame = buff.buff_end;
-        }
-      }
-      
-      return nextEvent;
-    }
-    
-
-    
-    /**
-     * バフの開始・終了イベントを適切な位置に挿入
-     * @param {Array} currentEvents - 現在のイベントリスト
-     * @param {Array} currentBuffs - 現在のバフ状況
-     * @param {number} targetFrame - 目標フレーム
-     * @returns {Object} 更新されたイベントリストとバフ状況
-     */
-    function insertBuffEvents(currentEvents, currentBuffs, targetFrame) {
-      const result = [...currentEvents];
-      let updatedBuffs = [...currentBuffs];
-      const previousFrame = result.length > 0 ? result[result.length - 1].frame : 0;
-      
-      const buffsToRemove = [];
-      
-      for (const buff of currentBuffs) {
-        // バフ開始イベントの挿入
-        if (buff.buff_start > previousFrame && buff.buff_start <= targetFrame) {
-          result.push({
-            frame: buff.buff_start,
-            student_num: 6,
-            cost_used: 0,
-            cost_recovery_buff_list: [buff],
-            event_name: `${buff.buff_name}開始`
-          });
-        }
-        
-        // バフ終了イベントの挿入
-        if (buff.buff_end > previousFrame && buff.buff_end <= targetFrame) {
-          buffsToRemove.push(buff);
-          
-          // 同名バフの重複チェック
-          const sameNameBuff = currentBuffs.find(otherBuff => 
-            otherBuff !== buff && 
-            otherBuff.buff_name === buff.buff_name &&
-            buff.buff_end >= otherBuff.buff_start &&
-            buff.buff_end < otherBuff.buff_end
-          );
-          
-          if (!sameNameBuff) {
-            result.push({
-              frame: buff.buff_end,
-              student_num: 6,
-              cost_used: 0,
-              cost_recovery_buff_list: [],
-              event_name: `${buff.buff_name}終了`
-            });
-          }
-        }
-      }
-      
-      // 終了したバフを削除
-      updatedBuffs = updatedBuffs.filter(buff => !buffsToRemove.includes(buff));
-      
-      return { updatedResult: result, updatedBuffs };
+      localStorage.setItem(`tl-assistant-slot-${slotNumber}`, JSON.stringify(saveData));
+      showMessage(`スロット${slotNumber}に保存しました`, 'success');
     }
 
-    timelineInput.addEventListener('input', updateTimelineOutput);
+    // スロット別ローカルストレージから読み込み
+    function loadFromSlot(slotNumber) {
+      const savedDataStr = localStorage.getItem(`tl-assistant-slot-${slotNumber}`);
+      if (!savedDataStr) {
+        showMessage(`スロット${slotNumber}にデータがありません`, 'error');
+        return;
+      }
+      
+      // 現在の入力データがある場合は上書き警告
+      const currentInput = document.getElementById('timelineInput').value;
+      if (currentInput.trim()) {
+        const currentPreview = currentInput.substring(0, 50) + (currentInput.length > 50 ? '...' : '');
+        const confirmMessage = `現在のタイムライン入力データが読み込みによって消去されます。\n` +
+                             `現在のデータ: ${currentPreview}\n\n` +
+                             `続行しますか？`;
+        if (!confirm(confirmMessage)) {
+          return;
+        }
+      }
+      
+      try {
+        const saveData = JSON.parse(savedDataStr);
+        document.getElementById('timelineInput').value = saveData.data;
+        showMessage(`スロット${slotNumber}からデータを読み込みました (保存日時: ${saveData.timestamp})`, 'success');
+        
+        // 自動更新を使用して処理を実行
+        triggerAutoUpdate();
+      } catch (error) {
+        showMessage(`スロット${slotNumber}のデータが破損しています`, 'error');
+      }
+    }
 
-    // Initial paint
-    recalcAndRender();
-    // 初期テキストも正規化して表示
-    updateTimelineOutput();
+    // 旧関数（互換性のため残す）
+    function saveToLocal() {
+      saveToSlot(1);
+    }
+
+    function loadFromLocal() {
+      loadFromSlot(1);
+    }
+
+    function copyToClipboard() {
+      if (!currentTimelineJSON) return;
+      
+      navigator.clipboard.writeText(JSON.stringify(currentTimelineJSON, null, 2))
+        .then(() => showMessage('クリップボードにコピーしました', 'success'))
+        .catch(() => showMessage('コピーに失敗しました', 'error'));
+    }
+
+    // タイムラインテキストのコピー
+    function copyTimelineText() {
+      const textarea = document.getElementById('timelineTextOutput');
+      textarea.select();
+      textarea.setSelectionRange(0, 99999); // モバイル対応
+      
+      navigator.clipboard.writeText(textarea.value)
+        .then(() => showMessage('タイムラインテキストをコピーしました', 'success'))
+        .catch(() => showMessage('コピーに失敗しました', 'error'));
+    }
   </script>
 </body>
 </html>
