@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブルーアーカイブ ガチャシミュレーター</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .controls {
+            background-color: #e8f4fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        label {
+            font-weight: bold;
+            min-width: 150px;
+        }
+        input[type="number"], select {
+            width: 120px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .description {
+            font-size: 14px;
+            color: #666;
+            font-style: italic;
+        }
+        .results {
+            margin-top: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+        .summary {
+            background-color: #d4edda;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .summary h3 {
+            margin-top: 0;
+            color: #155724;
+        }
+        .retreat-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            max-width: 600px;
+        }
+        .retreat-btn {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            min-width: 45px;
+            text-align: center;
+            color: #000;
+        }
+        .retreat-btn:hover {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+        }
+        .retreat-btn.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        .retreat-btn.active:hover {
+            background-color: #0056b3;
+            border-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ブルーアーカイブ ガチャシミュレーター</h1>
+        
+        <div class="controls">
+            <div class="form-group">
+                <label for="maxGacha">最大ガチャ数:</label>
+                <input type="number" id="maxGacha" value="100000" min="200" max="1000000" step="100">
+                <span class="description">シミュレーション全体の最大ガチャ数</span>
+            </div>
+            
+            <div class="form-group">
+                <label for="retreatLine">撤退ライン:</label>
+                <div class="retreat-buttons" id="retreatButtons">
+                    <!-- 10から190まで10刻みでボタンを生成 -->
+                </div>
+                <span class="description">この数字までにピックアップが引けたら撤退、これより大きくなると天井</span>
+            </div>
+            
+            <div class="form-group">
+                <label for="displayLimit">表示上限:</label>
+                <input type="number" id="displayLimit" value="600" min="100" max="5000" step="10">
+                <span class="description">テーブルに表示するガチャ回数の上限</span>
+            </div>
+            
+            <div class="form-group">
+                <button id="updateData">ガチャデータ更新</button>
+                <span class="description">新しいガチャデータを生成してシミュレーションを実行</span>
+            </div>
+        </div>
+
+        <div class="summary" id="summary" style="display: none;">
+            <h3>シミュレーション総合結果</h3>
+            <div id="summaryContent"></div>
+        </div>
+
+        <div class="results" id="results" style="display: none;">
+            <h2 id="resultsTitle">シミュレーション結果</h2>
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>セッション</th>
+                        <th>総ガチャ回数</th>
+                        <th>呼び出しポイント</th>
+                        <th>カケラ</th>
+                        <th>PU回数</th>
+                        <th>PU神名</th>
+                        <th>非PU星3</th>
+                        <th>非PU神名</th>
+                        <th>実質カケラ換算</th>
+                        <th>10連あたり実質カケラ換算</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // グローバル変数
+        let gachaData = [];
+        let maxGacha = 10000;
+        let retreatLine = 150;
+        let displayLimit = 600;
+
+        // ガチャの確率設定
+        const RATES = {
+            first9: {
+                pickupSSR: 0.007,    // 0.7% ピックアップ星3
+                nonPickupSSR: 0.023, // 2.3% 非ピックアップ星3
+                SR: 0.185,           // 18.5% 星2
+                R: 0.785             // 78.5% 星1
+            },
+            tenth: {
+                pickupSSR: 0.007,    // 0.7% ピックアップ星3
+                nonPickupSSR: 0.023, // 2.3% 非ピックアップ星3
+                SR: 0.97,            // 97% 星2（確定SR以上）
+                R: 0                 // 0% 星1
+            }
+        };
+
+        // 報酬設定
+        const REWARDS = {
+            R: { kakera: 1 },
+            SR: { kakera: 10 },
+            SSR: { kakera: 50 },
+            pickupFirst: { moji: 200 },      // 初回ピックアップ神名文字
+            pickupSecond: { moji: 100 },     // 2回目以降ピックアップ神名文字
+            nonPickupSSR: { moji: 30 }       // 非ピックアップSSR神名文字
+        };
+
+        const MOJI_TO_KAKERA_RATE = 5; // 神名文字1個 = 神名のカケラ5個
+
+        // 単発ガチャの実行
+        function singleGacha(isLastPull = false) {
+            const rates = isLastPull ? RATES.tenth : RATES.first9;
+            const rand = Math.random();
+            
+            if (rand < rates.pickupSSR) {
+                return { type: 'pickupSSR' };
+            } else if (rand < rates.pickupSSR + rates.nonPickupSSR) {
+                return { type: 'nonPickupSSR' };
+            } else if (rand < rates.pickupSSR + rates.nonPickupSSR + rates.SR) {
+                return { type: 'SR' };
+            } else {
+                return { type: 'R' };
+            }
+        }
+
+        // 10連ガチャの実行
+        function tenPullGacha() {
+            const results = [];
+            for (let i = 0; i < 9; i++) {
+                results.push(singleGacha(false));
+            }
+            results.push(singleGacha(true)); // 最後の1連
+            return results;
+        }
+
+        // 撤退ラインボタンを生成
+        function populateRetreatLineOptions() {
+            const container = document.getElementById('retreatButtons');
+            container.innerHTML = '';
+            for (let i = 10; i <= 190; i += 10) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'retreat-btn';
+                button.textContent = i;
+                button.value = i;
+                if (i === 150) {
+                    button.classList.add('active');
+                }
+                
+                button.addEventListener('click', function() {
+                    // 全てのボタンからactiveクラスを削除
+                    document.querySelectorAll('.retreat-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    // クリックされたボタンにactiveクラスを追加
+                    this.classList.add('active');
+                    
+                    // 撤退ラインを更新してシミュレーション実行
+                    retreatLine = parseInt(this.value);
+                    updateAndRun();
+                });
+                
+                container.appendChild(button);
+            }
+        }
+
+        // ガチャデータを生成
+        function generateGachaData() {
+            gachaData = [];
+            const totalTenPulls = Math.floor(maxGacha / 10);
+            
+            console.log(`データ生成開始: 総10連回数 ${totalTenPulls} (maxGacha: ${maxGacha})`);
+            
+            for (let tenPull = 0; tenPull < totalTenPulls; tenPull++) {
+                const tenPullResults = tenPullGacha();
+                for (const result of tenPullResults) {
+                    result.kakera = getKakeraForType(result.type);
+                    gachaData.push(result);
+                }
+            }
+            
+            console.log(`データ生成完了: ${gachaData.length}個のガチャ結果を生成`);
+        }
+
+        // タイプに応じたカケラ数を取得
+        function getKakeraForType(type) {
+            switch (type) {
+                case 'pickupSSR':
+                case 'nonPickupSSR':
+                    return REWARDS.SSR.kakera;
+                case 'SR':
+                    return REWARDS.SR.kakera;
+                case 'R':
+                default:
+                    return REWARDS.R.kakera;
+            }
+        }
+
+        // 報酬計算関数
+        function calculateRewards(gachaResults, hasPickupBefore = false) {
+            let kakera = 0;
+            let pickupMoji = 0;
+            let nonPickupMoji = 0;
+            let pickupCount = 0;
+            
+            for (const result of gachaResults) {
+                switch (result.type) {
+                    case 'R':
+                        kakera += REWARDS.R.kakera;
+                        break;
+                    case 'SR':
+                        kakera += REWARDS.SR.kakera;
+                        break;
+                    case 'pickupSSR':
+                        kakera += REWARDS.SSR.kakera;
+                        pickupCount++;
+                        if (!hasPickupBefore && pickupCount === 1) {
+                            pickupMoji += REWARDS.pickupFirst.moji;
+                        } else {
+                            pickupMoji += REWARDS.pickupSecond.moji;
+                        }
+                        break;
+                    case 'nonPickupSSR':
+                        kakera += REWARDS.SSR.kakera;
+                        nonPickupMoji += REWARDS.nonPickupSSR.moji;
+                        break;
+                }
+            }
+            
+            return { kakera, pickupMoji, nonPickupMoji, pickupCount };
+        }
+
+        // 結果行を追加する関数
+        function addResultRow(results, sessionNumber, total_gacha_count, tenjo_count, 
+                             kakera, pickups, pickupMoji, nonPickupMoji, 
+                             avgKakeraPerTen = null, displayLimit) {
+            if (total_gacha_count <= displayLimit) {
+                // 神名文字をカケラに換算
+                const pickupMojiAsKakera = pickupMoji * MOJI_TO_KAKERA_RATE;
+                const nonPickupMojiAsKakera = nonPickupMoji * MOJI_TO_KAKERA_RATE;
+                
+                // 実質カケラ換算 = カケラ + 神名文字価値
+                const jishitsuKakera = kakera + pickupMojiAsKakera + nonPickupMojiAsKakera;
+                
+                // 非ピックアップSSRの数を計算
+                const nonPickupStar3Count = Math.floor(nonPickupMoji / REWARDS.nonPickupSSR.moji);
+                
+                const resultData = {
+                    session: sessionNumber,
+                    totalGachaCount: total_gacha_count,
+                    tenjoCount: tenjo_count,
+                    kakera: kakera,
+                    pickups: pickups,
+                    pickupShinmei: pickupMoji,
+                    nonPickupStar3: nonPickupStar3Count,
+                    nonPickupShinmei: nonPickupMoji,
+                    jishitsuKakera: Math.round(jishitsuKakera),
+                    avgKakeraPerTen: avgKakeraPerTen !== null ? Math.round(avgKakeraPerTen * 10) / 10 : null
+                };
+                
+                results.push(resultData);
+            }
+        }
+
+        // シミュレーション実行
+        function runSimulation() {
+            console.log(`シミュレーション開始: maxGacha=${maxGacha}, retreatLine=${retreatLine}, displayLimit=${displayLimit}`);
+            console.log(`gachaData配列サイズ: ${gachaData.length}`);
+            
+            const results = [];
+            let gacha_count = 0;
+            let total_gacha_count = 0;
+            let tenjo_count = 0;
+            let sessionNumber = 1;
+            
+            // セッション内累計データ
+            let sessionKakera = 0;
+            let sessionPickupMoji = 0;
+            let sessionNonPickupMoji = 0;
+            let sessionPickupCount = 0;
+            let hasPickupBefore = false; // セッション内でピックアップを取得済みかどうか
+
+            // 全体累計データ（1000回ごとのログ用）
+            let totalAccumulatedKakera = 0;
+            let totalAccumulatedPickupMoji = 0;
+            let totalAccumulatedNonPickupMoji = 0;
+            let totalAccumulatedPickupCount = 0;
+
+            while (true) {
+                // 最大ガチャ数に達したかチェック
+                if (total_gacha_count >= maxGacha) {
+                    console.log(`シミュレーション終了: total_gacha_count=${total_gacha_count}, maxGacha=${maxGacha}`);
+                    break;
+                }
+                
+                gacha_count += 10;
+                total_gacha_count += 10;
+                tenjo_count += 10;
+
+                // 現在の10連分のデータを取得
+                const this10Data = [];
+                for (let i = total_gacha_count - 10; i < total_gacha_count; i++) {
+                    if (i >= gachaData.length) {
+                        console.error(`データ不足エラー: インデックス${i}がgachaData配列のサイズ${gachaData.length}を超えています`);
+                        console.log(`total_gacha_count=${total_gacha_count}, maxGacha=${maxGacha}`);
+                        break;
+                    }
+                    this10Data.push(gachaData[i]);
+                }
+                
+                // データが不足している場合の警告
+                if (this10Data.length < 10) {
+                    console.warn(`警告: 10連データが不足しています。取得できたのは${this10Data.length}個`);
+                }
+
+                // 10連分の報酬を計算
+                const rewards = calculateRewards(this10Data, hasPickupBefore);
+                
+                // 全体累計に加算
+                totalAccumulatedKakera += rewards.kakera;
+                totalAccumulatedPickupMoji += rewards.pickupMoji;
+                totalAccumulatedNonPickupMoji += rewards.nonPickupMoji;
+                totalAccumulatedPickupCount += rewards.pickupCount;
+                
+                // 1000回ごとに累積実質カケラ量をログ出力
+                if (total_gacha_count % 1000 === 0) {
+                    const totalJishitsuKakera = totalAccumulatedKakera + (totalAccumulatedPickupMoji + totalAccumulatedNonPickupMoji) * MOJI_TO_KAKERA_RATE;
+                    console.log(`${total_gacha_count}回時点 - 累積実質カケラ: ${Math.round(totalJishitsuKakera)}, セッション${sessionNumber}`);
+                }
+                
+                // セッション累計に加算
+                sessionKakera += rewards.kakera;
+                sessionPickupMoji += rewards.pickupMoji;
+                sessionNonPickupMoji += rewards.nonPickupMoji;
+                sessionPickupCount += rewards.pickupCount;
+                
+                // ピックアップを取得したらフラグを立てる
+                if (rewards.pickupCount > 0) {
+                    hasPickupBefore = true;
+                }
+
+                // 撤退または天井判定
+                let shouldReset = false;
+                let hasPickupInThis10 = rewards.pickupCount > 0;
+                
+                if (hasPickupInThis10) {
+                    if (tenjo_count <= retreatLine) {
+                        // 撤退
+                        shouldReset = true;
+                    }
+                }
+                
+                if (tenjo_count >= 200) {
+                    // 天井：ピックアップ1個と神名文字を追加
+                    sessionPickupCount++;
+                    const additionalKakera = REWARDS.SSR.kakera;
+                    const additionalMoji = hasPickupBefore ? REWARDS.pickupSecond.moji : REWARDS.pickupFirst.moji;
+                    
+                    sessionKakera += additionalKakera;
+                    sessionPickupMoji += additionalMoji;
+                    shouldReset = true;
+                    
+                    // 天井報酬をこの10連の報酬に追加
+                    rewards.kakera += additionalKakera;
+                    rewards.pickupCount += 1;
+                    rewards.pickupMoji += additionalMoji;
+                    
+                    // 全体累積にも天井報酬を追加
+                    totalAccumulatedKakera += additionalKakera;
+                    totalAccumulatedPickupMoji += additionalMoji;
+                    totalAccumulatedPickupCount += 1;
+                }
+
+                // 表示上限以下なら結果に追加（10連ごと、ただし天井・撤退の場合は除く）
+                if (!shouldReset) {
+                    // この10連で得られた報酬のみを表示
+                    addResultRow(results, sessionNumber, total_gacha_count, tenjo_count,
+                               rewards.kakera, rewards.pickupCount, rewards.pickupMoji, rewards.nonPickupMoji,
+                               null, displayLimit);
+                }
+
+                if (shouldReset) {
+                    // セッション終了時の最終結果を表示に追加
+                    // セッション全体の累積から10連あたり実質カケラ換算を計算
+                    const sessionTotalJishitsuKakera = sessionKakera + (sessionPickupMoji + sessionNonPickupMoji) * MOJI_TO_KAKERA_RATE;
+                    const avgKakeraPerTen = sessionTotalJishitsuKakera / (tenjo_count / 10);
+                    
+                    addResultRow(results, sessionNumber, total_gacha_count, tenjo_count,
+                               rewards.kakera, rewards.pickupCount, rewards.pickupMoji, rewards.nonPickupMoji,
+                               avgKakeraPerTen, displayLimit);
+                    
+                    // リセット
+                    sessionNumber++;
+                    tenjo_count = 0;
+                    sessionKakera = 0;
+                    sessionPickupMoji = 0;
+                    sessionNonPickupMoji = 0;
+                    sessionPickupCount = 0;
+                    hasPickupBefore = false;
+                    
+                    // リセット後、残りガチャ数が200未満の場合はループを終了
+                    if (maxGacha - total_gacha_count < 200) {
+                        break;
+                    }
+                }
+            }
+
+            // 全体累積の実質カケラを計算
+            const totalJishitsuKakera = totalAccumulatedKakera + (totalAccumulatedPickupMoji + totalAccumulatedNonPickupMoji) * MOJI_TO_KAKERA_RATE;
+
+            console.log(`runSimulation終了: results配列長=${results.length}, actualTotalGacha=${total_gacha_count}`);
+            console.log(`全体累積: 実質カケラ=${Math.round(totalJishitsuKakera)}, PU数=${totalAccumulatedPickupCount}`);
+            
+            return {
+                results: results,
+                actualTotalGacha: total_gacha_count,
+                totalJishitsuKakera: Math.round(totalJishitsuKakera),
+                totalPickupCount: totalAccumulatedPickupCount
+            };
+        }
+
+        // 結果表示
+        function displayResults(simulationResult) {
+            const { results, actualTotalGacha, totalJishitsuKakera, totalPickupCount } = simulationResult;
+            
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = '';
+
+            // タイトルを更新（表示上限を表示）
+            document.getElementById('resultsTitle').textContent = `シミュレーション結果（${displayLimit}連分のみ）`;
+
+            results.forEach(result => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${result.session}</td>
+                    <td>${result.totalGachaCount}</td>
+                    <td>${result.tenjoCount}</td>
+                    <td>${result.kakera}</td>
+                    <td>${result.pickups}</td>
+                    <td>${result.pickupShinmei}</td>
+                    <td>${result.nonPickupStar3}</td>
+                    <td>${result.nonPickupShinmei}</td>
+                    <td>${result.jishitsuKakera}</td>
+                    <td>${result.avgKakeraPerTen !== null ? result.avgKakeraPerTen : ''}</td>
+                `;
+            });
+
+            // サマリー計算（全体累積値を使用）
+            if (actualTotalGacha > 0) {
+                const avgKakeraPerTen = Math.round((totalJishitsuKakera / (actualTotalGacha / 10)) * 10) / 10;
+
+                console.log(`最終サマリー: 総ガチャ${actualTotalGacha}回, 総実質カケラ${totalJishitsuKakera}, 総PU${totalPickupCount}体`);
+
+                document.getElementById('summaryContent').innerHTML = `
+                    <p><strong>総ガチャ回数:</strong> ${actualTotalGacha}回</p>
+                    <p><strong>総実質カケラ:</strong> ${totalJishitsuKakera}</p>
+                    <p><strong>総PU数:</strong> ${totalPickupCount}体</p>
+                    <p><strong>10連あたり平均実質カケラ:</strong> ${avgKakeraPerTen}</p>
+                    <p><strong>現在の設定:</strong> 最大${maxGacha}連, 撤退ライン${retreatLine}連, 表示上限${displayLimit}連</p>
+                `;
+                document.getElementById('summary').style.display = 'block';
+            } else {
+                console.log(`警告: actualTotalGachaが0です`);
+            }
+
+            document.getElementById('results').style.display = 'block';
+        }
+
+        // パラメータ更新とシミュレーション実行
+        function updateAndRun() {
+            maxGacha = parseInt(document.getElementById('maxGacha').value);
+            // 撤退ラインはボタンで既に設定されているので、現在の値を使用
+            displayLimit = parseInt(document.getElementById('displayLimit').value);
+
+            console.log(`=== 新しいシミュレーション開始 ===`);
+            console.log(`設定値: maxGacha=${maxGacha}, retreatLine=${retreatLine}, displayLimit=${displayLimit}`);
+
+            generateGachaData();
+            const simulationResult = runSimulation();
+            displayResults(simulationResult);
+            
+            console.log(`=== シミュレーション完了 ===`);
+        }
+
+        // イベントリスナー設定
+        document.addEventListener('DOMContentLoaded', function() {
+            populateRetreatLineOptions();
+            
+            // ボタンイベント
+            document.getElementById('updateData').addEventListener('click', updateAndRun);
+            
+            // 自動更新イベント
+            document.getElementById('maxGacha').addEventListener('input', updateAndRun);
+            document.getElementById('displayLimit').addEventListener('input', updateAndRun);
+
+            // 初期実行
+            updateAndRun();
+        });
+    </script>
+</body>
+</html>
