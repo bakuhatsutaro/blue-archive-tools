@@ -709,27 +709,38 @@
   </div>
 
   <script>
-    // グローバル変数
-    let currentTimelineJSON = null;
-    let currentInputJSON = null;
-    let autoUpdateTimer = null;
-    let autoUpdateEnabled = true;
+    // =============================================================================
+    // 🌐 グローバル変数（設定・状態管理）
+    // =============================================================================
+    
+    // アプリケーション状態管理
+    let currentTimelineJSON = null;  // 現在処理中のタイムラインJSONデータ
+    let currentInputJSON = null;     // 現在の入力データのJSON表現
+    let autoUpdateTimer = null;      // 自動更新用のタイマーID
+    let autoUpdateEnabled = true;    // 自動更新機能の有効/無効フラグ
     
     // バフデータをグローバルに保存
-    let buffData = window.BUFF_DATA || null;
+    let buffData = window.BUFF_DATA || null;  // バフ効果データの参照
     
-    // 設定変数（legacy版互換）
-    let battleTime = 180; // 戦闘時間（秒）
-    let ssEnabled = true; // SS有効フラグ
-    let maxCost = 10; // 最大コスト
-    let numberInterpretation = 'cost'; // 行頭数字の解釈
-    let timeDisplayFormat = 'backward'; // 時間表示形式
-    let modifierAlwaysForward = 'yes'; // +/-の解釈
-    let seiaKoyuu2 = 'yes'; // セイア固有2の有無（デフォルト：あり）
-    let kanoeSS = '0'; // カノエのレベル（デフォルト：なし）
-    let cherinoSS = '0'; // チェリノのレベル（デフォルト：なし）
+    // アプリケーション設定値（legacy版互換）
+    let battleTime = 180;                    // 戦闘時間（秒）
+    let ssEnabled = true;                    // SS有効フラグ
+    let maxCost = 10;                       // 最大コスト設定
+    let numberInterpretation = 'cost';       // 行頭数字の解釈方法
+    let timeDisplayFormat = 'backward';      // 時間表示形式（backward/forward）
+    let modifierAlwaysForward = 'yes';       // +/-の解釈方向
+    let seiaKoyuu2 = 'yes';                 // セイア固有2の有無（デフォルト：あり）
+    let kanoeSS = '0';                      // カノエのレベル（デフォルト：なし）
+    let cherinoSS = '0';                    // チェリノのレベル（デフォルト：なし）
 
-    // 設定の自動保存・復元
+    // =============================================================================
+    // 💾 セーブ・ロード関連
+    // =============================================================================
+    
+    /**
+     * saveSettings - アプリケーション設定をlocalStorageに保存
+     * 戦闘時間、SS設定、コスト制限、表示形式等のユーザー設定を永続化する
+     */
     function saveSettings() {
       const settings = {
         battleTime,
@@ -745,13 +756,18 @@
       localStorage.setItem('tl-assistant-settings', JSON.stringify(settings));
     }
 
+    /**
+     * loadSettings - localStorageからアプリケーション設定を復元
+     * 保存された設定値を読み込み、グローバル変数に適用する
+     * エラー時は警告を出力し、デフォルト値を維持する
+     */
     function loadSettings() {
       try {
         const savedSettings = localStorage.getItem('tl-assistant-settings');
         if (savedSettings) {
           const settings = JSON.parse(savedSettings);
           
-          // 保存された設定を復元
+          // 保存された設定を復元（undefined チェックで安全性を確保）
           if (settings.battleTime !== undefined) battleTime = settings.battleTime;
           if (settings.ssEnabled !== undefined) ssEnabled = settings.ssEnabled;
           if (settings.maxCost !== undefined) maxCost = settings.maxCost;
@@ -769,7 +785,104 @@
       }
     }
 
-    // 初期化
+    /**
+     * saveToSlot - タイムラインデータをスロット別にlocalStorageに保存
+     * @param {number} slotNumber - 保存先スロット番号（1-10）
+     * 既存データがある場合は上書き確認を行う
+     * データ形式: {data: string, timestamp: string, preview: string}
+     */
+    function saveToSlot(slotNumber) {
+      const inputText = document.getElementById('timelineInput').value;
+      if (!inputText.trim()) {
+        showMessage('保存するデータがありません', 'error');
+        return;
+      }
+      
+      // 既存データがある場合は上書き確認
+      const existingData = localStorage.getItem(`tl-assistant-slot-${slotNumber}`);
+      if (existingData) {
+        const existing = JSON.parse(existingData);
+        const confirmMessage = `スロット${slotNumber}には既にデータが保存されています。\n` +
+                             `保存日時: ${existing.timestamp}\n` +
+                             `プレビュー: ${existing.preview}\n\n` +
+                             `上書きしますか？`;
+        if (!confirm(confirmMessage)) {
+          return;
+        }
+      }
+      
+      const saveData = {
+        data: inputText,
+        timestamp: new Date().toLocaleString('ja-JP'),
+        preview: inputText.substring(0, 50) + (inputText.length > 50 ? '...' : '')
+      };
+      
+      localStorage.setItem(`tl-assistant-slot-${slotNumber}`, JSON.stringify(saveData));
+      showMessage(`スロット${slotNumber}に保存しました`, 'success');
+    }
+
+    /**
+     * loadFromSlot - スロット別localStorageからタイムラインデータを読み込み
+     * @param {number} slotNumber - 読み込み元スロット番号（1-10）
+     * 現在の入力データがある場合は上書き警告を表示
+     * 読み込み後は自動更新を実行してタイムラインを処理
+     */
+    function loadFromSlot(slotNumber) {
+      const savedDataStr = localStorage.getItem(`tl-assistant-slot-${slotNumber}`);
+      if (!savedDataStr) {
+        showMessage(`スロット${slotNumber}にデータがありません`, 'error');
+        return;
+      }
+      
+      // 現在の入力データがある場合は上書き警告
+      const currentInput = document.getElementById('timelineInput').value;
+      if (currentInput.trim()) {
+        const currentPreview = currentInput.substring(0, 50) + (currentInput.length > 50 ? '...' : '');
+        const confirmMessage = `現在のタイムライン入力データが読み込みによって消去されます。\n` +
+                             `現在のデータ: ${currentPreview}\n\n` +
+                             `続行しますか？`;
+        if (!confirm(confirmMessage)) {
+          return;
+        }
+      }
+      
+      try {
+        const saveData = JSON.parse(savedDataStr);
+        document.getElementById('timelineInput').value = saveData.data;
+        showMessage(`スロット${slotNumber}からデータを読み込みました (保存日時: ${saveData.timestamp})`, 'success');
+        
+        // 自動更新を使用して処理を実行
+        triggerAutoUpdate();
+      } catch (error) {
+        showMessage(`スロット${slotNumber}のデータが破損しています`, 'error');
+      }
+    }
+
+    /**
+     * saveToLocal - 旧関数（互換性のため残す）
+     * saveToSlot(1)のエイリアス
+     */
+    function saveToLocal() {
+      saveToSlot(1);
+    }
+
+    /**
+     * loadFromLocal - 旧関数（互換性のため残す）  
+     * loadFromSlot(1)のエイリアス
+     */
+    function loadFromLocal() {
+      loadFromSlot(1);
+    }
+
+    // =============================================================================
+    // 🔧 初期化・設定管理
+    // =============================================================================
+    
+    /**
+     * 初期化 - DOMContentLoadedイベントハンドラ
+     * アプリケーションの起動時に必要な初期化処理を順次実行
+     * 外部ライブラリの読み込み確認、設定復元、UI初期化を行う
+     */
     document.addEventListener('DOMContentLoaded', function() {
       // スクリプトの読み込み完了を待つ
       setTimeout(() => {
@@ -801,13 +914,19 @@
         if (autoUpdateEnabled) {
           autoUpdateButton.classList.add('active');
         }
-      }, 200); // 少し長めに待機
+      }, 200); // 少し長めに待機してライブラリの読み込み完了を確保
     });
 
-    // バフデータの読み込み
+    /**
+     * loadBuffData - バフデータの読み込み
+     * buffs.jsから提供されるバフ効果データをグローバル変数に設定
+     * バフ計算に必要な基礎データを初期化する
+     */
     function loadBuffData() {
       // buffs.jsから直接読み込み済み
       buffData = window.BUFF_DATA || null;
+      
+      // デバッグ用ログ - AI向け指示：これは残す
       if (buffData) {
         console.log('バフデータ読み込み完了:', buffData);
       } else {
@@ -815,7 +934,11 @@
       }
     }
 
-    // 自動更新の設定
+    /**
+     * setupAutoUpdate - 自動更新機能の設定
+     * タイムライン入力欄の変更を監視し、500ms後に自動でタイムライン処理を実行
+     * 連続入力時はタイマーをリセットして無駄な処理を防ぐ
+     */
     function setupAutoUpdate() {
       // タイムライン入力欄の変更を監視
       const timelineInput = document.getElementById('timelineInput');
@@ -831,9 +954,13 @@
       console.log('自動更新イベントリスナーを設定しました');
     }
 
-    // 設定ボタンの初期化
+    /**
+     * setupSettingsButtons - 設定ボタンのイベントリスナー初期化
+     * 各種設定ボタン（戦闘時間、SS、コスト等）にクリックイベントを設定
+     * 設定変更時は自動保存と自動更新を実行する
+     */
     function setupSettingsButtons() {
-      // 戦闘時間ボタン
+      // 戦闘時間ボタンの設定
       const ttButtons = Array.from(document.querySelectorAll('.btn[data-tt]'));
       ttButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -844,7 +971,7 @@
         });
       });
 
-      // SSボタン
+      // SSボタンの設定
       const ssButtons = Array.from(document.querySelectorAll('.btn[data-ss]'));
       ssButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -855,7 +982,7 @@
         });
       });
 
-      // 最大コストボタン
+      // 最大コストボタンの設定
       const limitButtons = Array.from(document.querySelectorAll('.btn[data-limit]'));
       limitButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -866,7 +993,7 @@
         });
       });
 
-      // 行頭数字解釈ボタン
+      // 行頭数字解釈ボタンの設定
       const numberButtons = Array.from(document.querySelectorAll('.btn[data-number]'));
       numberButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -877,7 +1004,7 @@
         });
       });
 
-      // 時間表示形式ボタン
+      // 時間表示形式ボタンの設定
       const displayButtons = Array.from(document.querySelectorAll('.btn[data-display]'));
       displayButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -888,7 +1015,7 @@
         });
       });
 
-      // +/-解釈ボタン
+      // +/-解釈ボタンの設定
       const modifierButtons = Array.from(document.querySelectorAll('.btn[data-modifier]'));
       modifierButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -899,7 +1026,7 @@
         });
       });
 
-      // セイア固有2ボタン
+      // セイア固有2ボタンの設定
       const seiaButtons = Array.from(document.querySelectorAll('.btn[data-seia]'));
       seiaButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -910,7 +1037,7 @@
         });
       });
 
-      // カノエボタン
+      // カノエボタンの設定
       const kanoeButtons = Array.from(document.querySelectorAll('.btn[data-kanoe]'));
       kanoeButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -921,7 +1048,7 @@
         });
       });
 
-      // チェリノボタン
+      // チェリノボタンの設定
       const cherinoButtons = Array.from(document.querySelectorAll('.btn[data-cherino]'));
       cherinoButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -933,9 +1060,13 @@
       });
     }
 
-    // アクティブボタンの更新
+    /**
+     * updateActiveButtons - アクティブボタンの表示更新
+     * 現在の設定値に基づいて各設定ボタンのアクティブ状態を更新
+     * 現在値の表示テキストも同時に更新する
+     */
     function updateActiveButtons() {
-      // 戦闘時間ボタン
+      // 戦闘時間ボタンのアクティブ状態更新
       const ttButtons = Array.from(document.querySelectorAll('.btn[data-tt]'));
       ttButtons.forEach(btn => {
         const v = Number(btn.dataset.tt);
@@ -943,7 +1074,7 @@
       });
       document.getElementById('currentTT').textContent = `(現在: ${battleTime}秒)`;
 
-      // SSボタン
+      // SSボタンのアクティブ状態更新
       const ssButtons = Array.from(document.querySelectorAll('.btn[data-ss]'));
       ssButtons.forEach(btn => {
         const isOn = btn.dataset.ss === 'on';
@@ -951,7 +1082,7 @@
       });
       document.getElementById('currentSS').textContent = `(現在: ${ssEnabled ? 'オン' : 'オフ'})`;
 
-      // 最大コストボタン
+      // 最大コストボタンのアクティブ状態更新
       const limitButtons = Array.from(document.querySelectorAll('.btn[data-limit]'));
       limitButtons.forEach(btn => {
         const v = Number(btn.dataset.limit);
@@ -959,35 +1090,35 @@
       });
       document.getElementById('currentLimit').textContent = `(現在: ${maxCost})`;
 
-      // 行頭数字解釈ボタン
+      // 行頭数字解釈ボタンのアクティブ状態更新
       const numberButtons = Array.from(document.querySelectorAll('.btn[data-number]'));
       numberButtons.forEach(btn => {
         btn.classList.toggle('active', btn.dataset.number === numberInterpretation);
       });
       document.getElementById('currentNumber').textContent = `(現在: ${numberInterpretation === 'time' ? 'タイム' : 'コストタイミング'})`;
 
-      // 時間表示形式ボタン
+      // 時間表示形式ボタンのアクティブ状態更新
       const displayButtons = Array.from(document.querySelectorAll('.btn[data-display]'));
       displayButtons.forEach(btn => {
         btn.classList.toggle('active', btn.dataset.display === timeDisplayFormat);
       });
       document.getElementById('currentDisplay').textContent = `(現在: ${timeDisplayFormat === 'backward' ? 'ゲーム内表示' : '経過時間'})`;
 
-      // +/-解釈ボタン
+      // +/-解釈ボタンのアクティブ状態更新
       const modifierButtons = Array.from(document.querySelectorAll('.btn[data-modifier]'));
       modifierButtons.forEach(btn => {
         btn.classList.toggle('active', btn.dataset.modifier === modifierAlwaysForward);
       });
       document.getElementById('currentModifier').textContent = `(現在: ${modifierAlwaysForward === 'yes' ? '常に秒後/秒前' : '表示形式に依存'})`;
 
-      // セイア固有2ボタン
+      // セイア固有2ボタンのアクティブ状態更新
       const seiaButtons = Array.from(document.querySelectorAll('.btn[data-seia]'));
       seiaButtons.forEach(btn => {
         btn.classList.toggle('active', btn.dataset.seia === seiaKoyuu2);
       });
       document.getElementById('currentSeia').textContent = `(現在: ${seiaKoyuu2 === 'yes' ? 'あり' : 'なし'})`;
 
-      // カノエボタン
+      // カノエボタンのアクティブ状態更新
       const kanoeButtons = Array.from(document.querySelectorAll('.btn[data-kanoe]'));
       kanoeButtons.forEach(btn => {
         btn.classList.toggle('active', btn.dataset.kanoe === kanoeSS);
@@ -1001,7 +1132,7 @@
       };
       document.getElementById('currentKanoe').textContent = `(現在: ${kanoeLabels[kanoeSS] || 'なし'})`;
 
-      // チェリノボタン
+      // チェリノボタンのアクティブ状態更新
       const cherinoButtons = Array.from(document.querySelectorAll('.btn[data-cherino]'));
       cherinoButtons.forEach(btn => {
         btn.classList.toggle('active', btn.dataset.cherino === cherinoSS);
@@ -1013,10 +1144,19 @@
         '3': '本人+2',
         '4': '本人+3'
       };
+      // AI向け指示：これは残す
       document.getElementById('currentCherino').textContent = `(現在: ${cherinoLabels[cherinoSS] || 'なし'})`;
     }
 
-    // 自動更新のトリガー
+    // =============================================================================
+    // ⚙️ タイムライン処理
+    // =============================================================================
+
+    /**
+     * triggerAutoUpdate - 自動更新のトリガー
+     * 設定変更時やユーザー入力時に呼び出され、短時間後にタイムライン処理を実行
+     * 100msの遅延で即座に反映（設定変更用）
+     */
     function triggerAutoUpdate() {
       if (autoUpdateEnabled) {
         clearTimeout(autoUpdateTimer);
@@ -1026,7 +1166,11 @@
       }
     }
 
-    // エラーハンドリング付きのタイムライン処理（自動更新用）
+    /**
+     * processTimelineWithErrorHandling - エラーハンドリング付きタイムライン処理
+     * 自動更新用のラッパー関数。エラーが発生してもユーザーには通知せず、
+     * コンソールログのみに記録する
+     */
     async function processTimelineWithErrorHandling() {
       try {
         const input = document.getElementById('timelineInput').value.trim();
@@ -1047,7 +1191,17 @@
       }
     }
 
-    // 依存ライブラリの確認
+    /**
+     * checkDependencies - 必要な外部ライブラリの読み込み確認
+     * @returns {boolean} 全ての依存関係が満たされている場合はtrue
+     * 
+     * 以下のライブラリとその主要関数の存在を確認:
+     * - utilities.js: parseTimeToSeconds等のユーティリティ関数
+     * - tl-common.js: TLCommon名前空間
+     * - input-processor.js: createInputJSON関数  
+     * - tl-editor.js: TimelineProcessorクラス
+     * - timeline-formatter.js: generateTimelineHTML関数
+     */
     function checkDependencies() {
       const missing = [];
       const details = [];
@@ -1120,7 +1274,17 @@
       return true;
     }
 
-    // メイン処理関数
+    /**
+     * processTimeline - メインのタイムライン処理関数
+     * @param {boolean} isAutoUpdate - 自動更新モードかどうか（エラー表示の制御）
+     * 
+     * 処理の流れ:
+     * 1. 依存関係の確認
+     * 2. 設定値の収集
+     * 3. 入力データの処理（InputProcessor）
+     * 4. タイムライン生成（TLEditor.TimelineProcessor）
+     * 5. 結果の表示（HTML、テキスト、デバッグ情報、JSON）
+     */
     async function processTimeline(isAutoUpdate = false) {
       try {
         // 依存関係の確認
@@ -1159,7 +1323,7 @@
           cherino_ss: cherinoSS
         };
 
-        // 入力処理
+        // 入力処理フェーズ
         try {
           console.log('InputProcessor.createInputJSON 実行開始');
           const processedTimeline = window.InputProcessor.createInputJSON(input, settings);
@@ -1184,9 +1348,8 @@
           throw new Error(`入力処理エラー: ${inputError.message}`);
         }
 
-        // タイムライン生成
+        // タイムライン生成フェーズ
         try {
-          // 新しいTimelineProcessorクラスを使用
           console.log('TimelineProcessor作成時のbuffData:', buffData);
           const processor = new window.TLEditor.TimelineProcessor(currentInputJSON, settings, buffData);
           currentTimelineJSON = processor.createTimelineJSON();
@@ -1201,7 +1364,7 @@
           throw new Error(`タイムライン生成エラー: ${timelineError.message}`);
         }
 
-        // 結果表示
+        // 結果表示フェーズ
         displayTimelineResults(currentTimelineJSON);
         displayDebugInfo(currentInputJSON, currentTimelineJSON);
         displayJSONOutput(currentTimelineJSON);
@@ -1214,7 +1377,17 @@
       }
     }
 
-    // 結果表示
+    // =============================================================================
+    // 📊 表示・出力
+    // =============================================================================
+    
+    /**
+     * displayTimelineResults - タイムライン結果の表示
+     * @param {Object} timelineJSON - タイムラインJSONデータ
+     * 
+     * HTMLとテキスト形式の両方でタイムラインを生成・表示
+     * イベント一覧テーブル、コストポイント詳細、追加イベントも含む
+     */
     function displayTimelineResults(timelineJSON) {
       // タイムラインセクションを表示
       document.getElementById('timelineSection').style.display = 'block';
@@ -1243,7 +1416,7 @@
       
       const output = document.getElementById('timelineOutput');
       
-      // コストポイント解説を追加
+      // 詳細イベント一覧テーブルの生成
       let html = `<table>
           <thead>
             <tr>
@@ -1260,6 +1433,7 @@
           <tbody>
       `;
 
+      // 各イベントの詳細情報を表示
       for (const event of timelineJSON.timeline) {
         const costPoints = event.remaining_cost_points !== undefined ? event.remaining_cost_points.toLocaleString() : 'N/A';
         const totalCostRecovery = event.total_cost_recovery !== undefined ? event.total_cost_recovery.toLocaleString() : 'N/A';
@@ -1294,7 +1468,7 @@
         </div>
       `;
 
-      // 追加イベント表示
+      // 追加イベント（バフ等）の表示
       if (timelineJSON.additional_events.length > 0) {
         html += `
           <h4>🎭 追加イベント（コスト回復バフ等）</h4>
@@ -1337,7 +1511,13 @@
       output.innerHTML = html;
     }
 
-    // デバッグ情報表示
+    /**
+     * displayDebugInfo - デバッグ情報の表示
+     * @param {Object} inputJSON - 入力処理結果のJSON
+     * @param {Object} timelineJSON - タイムライン生成結果のJSON
+     * 
+     * 入力JSON構造と処理統計を表示して開発・デバッグを支援
+     */
     function displayDebugInfo(inputJSON, timelineJSON) {
       const debug = document.getElementById('debugInfo');
       
@@ -1357,7 +1537,12 @@
       debug.innerHTML = html;
     }
 
-    // JSON出力表示
+    /**
+     * displayJSONOutput - JSON出力の表示
+     * @param {Object} timelineJSON - タイムラインJSONデータ
+     * 
+     * 整形されたJSONを表示し、クリップボードコピー機能を提供
+     */
     function displayJSONOutput(timelineJSON) {
       const output = document.getElementById('jsonOutput');
       output.innerHTML = `
@@ -1366,7 +1551,17 @@
       `;
     }
 
-    // ユーティリティ関数
+    // =============================================================================
+    // 🔧 ユーティリティ・UI
+    // =============================================================================
+
+    /**
+     * showMessage - ユーザーへのメッセージ表示
+     * @param {string} text - 表示するメッセージ
+     * @param {string} type - メッセージタイプ（'info', 'success', 'error'）
+     * 
+     * エラーメッセージは手動で閉じるまで表示、成功メッセージは3秒で自動消去
+     */
     function showMessage(text, type = 'info') {
       // 既存のメッセージを削除
       const existing = document.querySelector('.error-message, .success-message, .info-message');
@@ -1392,11 +1587,19 @@
       document.querySelector('.main-content').insertBefore(div, document.querySelector('.timeline-container'));
     }
 
+    /**
+     * toggleAccordion - アコーディオンUI の開閉切り替え
+     * @param {HTMLElement} header - クリックされたヘッダー要素
+     */
     function toggleAccordion(header) {
       const accordion = header.parentElement;
       accordion.classList.toggle('open');
     }
 
+    /**
+     * clearAll - 全データのクリア
+     * 入力、出力、グローバル変数、タイマーを全てリセットする
+     */
     function clearAll() {
       document.getElementById('timelineInput').value = '';
       document.getElementById('timelineOutput').innerHTML = '<div class="info-message">タイムラインをクリアしました</div>';
@@ -1410,8 +1613,13 @@
       clearTimeout(autoUpdateTimer);
     }
 
-    // サンプルタイムライン読み込み関数
-    // AI向け指示：サンプルは変えないでください
+    /**
+     * loadSampleTimeline - サンプルタイムラインの読み込み
+     * @param {number} sampleNumber - 読み込むサンプル番号（1-5）
+     * 
+     * 事前定義されたサンプルタイムラインを入力欄に設定し、自動更新を実行
+     * AI向け指示：サンプル内容はそのまま維持すること
+     */
     function loadSampleTimeline(sampleNumber) {
       let sample = '';
       
@@ -1495,7 +1703,10 @@
       }
     }
 
-    // 自動更新の切り替え
+    /**
+     * toggleAutoUpdate - 自動更新機能のON/OFF切り替え
+     * ボタンの表示状態を更新し、有効時は現在の入力で即座に更新を実行
+     */
     function toggleAutoUpdate() {
       autoUpdateEnabled = !autoUpdateEnabled;
       const button = document.getElementById('autoUpdateToggle');
@@ -1520,7 +1731,16 @@
       }
     }
 
-    // スロット別ローカルストレージに保存
+    // =============================================================================
+    // 🚨 重複関数 - TODO: セーブ・ロード統合後に削除予定
+    // =============================================================================
+    // 注意: 以下の関数は上記の「💾 セーブ・ロード関連」セクションと重複しています
+    // SaveDataManager実装後に削除する予定です
+
+    /**
+     * saveToSlot - 【重複】スロット別保存（削除予定）
+     * ※上記のセーブ・ロードセクションと同じ実装が存在
+     */
     function saveToSlot(slotNumber) {
       const inputText = document.getElementById('timelineInput').value;
       if (!inputText.trim()) {
@@ -1592,6 +1812,14 @@
       loadFromSlot(1);
     }
 
+    // =============================================================================
+    // 📋 コピー・クリップボード
+    // =============================================================================
+
+    /**
+     * copyToClipboard - タイムラインJSONをクリップボードにコピー
+     * 現在生成されているタイムラインJSONを整形してクリップボードに送る
+     */
     function copyToClipboard() {
       if (!currentTimelineJSON) return;
       
@@ -1600,7 +1828,11 @@
         .catch(() => showMessage('コピーに失敗しました', 'error'));
     }
 
-    // タイムラインテキストのコピー
+    /**
+     * copyTimelineText - タイムラインテキストをクリップボードにコピー
+     * 生成されたテキスト形式タイムラインをクリップボードに送る
+     * モバイル端末での選択にも対応
+     */
     function copyTimelineText() {
       const textarea = document.getElementById('timelineTextOutput');
       textarea.select();
