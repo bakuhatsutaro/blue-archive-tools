@@ -735,6 +735,20 @@
       cherino_ss: '0'                      // チェリノのレベル（デフォルト：なし）
     };
 
+    // タイムラインに関連する設定項目のキー一覧
+    // これらの設定はセーブスロットのセーブデータに含まれ、スロットからロードする際に復元される
+    const timeline_related_setting_keys = [
+      'battletime',
+      'ss_enabled', 
+      'max_cost',
+      'seia_koyuu2',
+      'kanoe_ss',
+      'cherino_ss',
+      'number_interpretation',
+      'time_display_format',
+      'modifier_always_forward'
+    ];
+
     // =============================================================================
     // 💾 セーブ・ロード関連
     // =============================================================================
@@ -816,7 +830,7 @@
      * saveToSlot - タイムラインデータをスロット別にlocalStorageに保存
      * @param {number} slotNumber - 保存先スロット番号（1-10）
      * 既存データがある場合は上書き確認を行う
-     * データ形式: {data: string, timestamp: string, preview: string}
+     * データ形式: {data: string, settings: object, timestamp: string, preview: string}
      */
     function saveToSlot(slotNumber) {
       const inputText = document.getElementById('timelineInput').value;
@@ -838,14 +852,23 @@
         }
       }
       
+      // タイムライン関連設定を抽出
+      const timelineSettings = {};
+      for (const key of timeline_related_setting_keys) {
+        if (settings.hasOwnProperty(key)) {
+          timelineSettings[key] = settings[key];
+        }
+      }
+      
       const saveData = {
         data: inputText,
+        settings: timelineSettings,
         timestamp: new Date().toLocaleString('ja-JP'),
         preview: inputText.substring(0, 50) + (inputText.length > 50 ? '...' : '')
       };
       
       localStorage.setItem(`tl-assistant-slot-${slotNumber}`, JSON.stringify(saveData));
-      showMessage(`スロット${slotNumber}に保存しました`, 'success');
+      showMessage(`スロット${slotNumber}に保存しました（設定も含む）`, 'success');
     }
 
     /**
@@ -876,7 +899,17 @@
       try {
         const saveData = JSON.parse(savedDataStr);
         document.getElementById('timelineInput').value = saveData.data;
-        showMessage(`スロット${slotNumber}からデータを読み込みました (保存日時: ${saveData.timestamp})`, 'success');
+        
+        // 設定データがある場合は読み込み
+        if (saveData.settings) {
+          applyLoadedSettings(saveData.settings);
+          // 設定UIを更新
+          updateActiveButtons();
+          saveSettings(); // 現在の設定を保存
+          showMessage(`スロット${slotNumber}からデータと設定を読み込みました (保存日時: ${saveData.timestamp})`, 'success');
+        } else {
+          showMessage(`スロット${slotNumber}からデータを読み込みました (保存日時: ${saveData.timestamp})`, 'success');
+        }
         
         // 自動更新を使用して処理を実行
         triggerAutoUpdate();
@@ -1749,85 +1782,6 @@
 
     // =============================================================================
     // 🚨 重複関数 - TODO: セーブ・ロード統合後に削除予定
-    // =============================================================================
-    // 注意: 以下の関数は上記の「💾 セーブ・ロード関連」セクションと重複しています
-    // SaveDataManager実装後に削除する予定です
-
-    /**
-     * saveToSlot - 【重複】スロット別保存（削除予定）
-     * ※上記のセーブ・ロードセクションと同じ実装が存在
-     */
-    function saveToSlot(slotNumber) {
-      const inputText = document.getElementById('timelineInput').value;
-      if (!inputText.trim()) {
-        showMessage('保存するデータがありません', 'error');
-        return;
-      }
-      
-      // 既存データがある場合は上書き確認
-      const existingData = localStorage.getItem(`tl-assistant-slot-${slotNumber}`);
-      if (existingData) {
-        const existing = JSON.parse(existingData);
-        const confirmMessage = `スロット${slotNumber}には既にデータが保存されています。\n` +
-                             `保存日時: ${existing.timestamp}\n` +
-                             `プレビュー: ${existing.preview}\n\n` +
-                             `上書きしますか？`;
-        if (!confirm(confirmMessage)) {
-          return;
-        }
-      }
-      
-      const saveData = {
-        data: inputText,
-        timestamp: new Date().toLocaleString('ja-JP'),
-        preview: inputText.substring(0, 50) + (inputText.length > 50 ? '...' : '')
-      };
-      
-      localStorage.setItem(`tl-assistant-slot-${slotNumber}`, JSON.stringify(saveData));
-      showMessage(`スロット${slotNumber}に保存しました`, 'success');
-    }
-
-    // スロット別ローカルストレージから読み込み
-    function loadFromSlot(slotNumber) {
-      const savedDataStr = localStorage.getItem(`tl-assistant-slot-${slotNumber}`);
-      if (!savedDataStr) {
-        showMessage(`スロット${slotNumber}にデータがありません`, 'error');
-        return;
-      }
-      
-      // 現在の入力データがある場合は上書き警告
-      const currentInput = document.getElementById('timelineInput').value;
-      if (currentInput.trim()) {
-        const currentPreview = currentInput.substring(0, 50) + (currentInput.length > 50 ? '...' : '');
-        const confirmMessage = `現在のタイムライン入力データが読み込みによって消去されます。\n` +
-                             `現在のデータ: ${currentPreview}\n\n` +
-                             `続行しますか？`;
-        if (!confirm(confirmMessage)) {
-          return;
-        }
-      }
-      
-      try {
-        const saveData = JSON.parse(savedDataStr);
-        document.getElementById('timelineInput').value = saveData.data;
-        showMessage(`スロット${slotNumber}からデータを読み込みました (保存日時: ${saveData.timestamp})`, 'success');
-        
-        // 自動更新を使用して処理を実行
-        triggerAutoUpdate();
-      } catch (error) {
-        showMessage(`スロット${slotNumber}のデータが破損しています`, 'error');
-      }
-    }
-
-    // 旧関数（互換性のため残す）
-    function saveToLocal() {
-      saveToSlot(1);
-    }
-
-    function loadFromLocal() {
-      loadFromSlot(1);
-    }
-
     // =============================================================================
     // 📋 コピー・クリップボード
     // =============================================================================
