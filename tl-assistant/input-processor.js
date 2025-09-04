@@ -53,8 +53,8 @@ function normalizeText(text) {
     return '';
   }
   
-  // 前後の空白を削除し、全角スペースを半角スペースに変換
-  return text.trim().replace(/　/g, ' ');
+  // 前後の空白を削除し、全角スペースを半角スペースに変換、全角！を半角!に変換
+  return text.trim().replace(/　/g, ' ').replace(/！/g, '!');
 }
 
 // ==============================
@@ -343,6 +343,12 @@ function createInputJSON(input_original, settings = {}) {
     
     // 空行は無視
     if (!normalizedLine) {
+      continue;
+    }
+
+    // 行頭が!で始まる行（コメント行）は無視
+    const is_comment = normalizedLine.startsWith('!');
+    if (is_comment) {
       continue;
     }
 
