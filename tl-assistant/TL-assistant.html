@@ -722,61 +722,88 @@
     // バフデータをグローバルに保存
     let buffData = window.BUFF_DATA || null;  // バフ効果データの参照
     
-    // アプリケーション設定値（legacy版互換）
-    let battleTime = 180;                    // 戦闘時間（秒）
-    let ssEnabled = true;                    // SS有効フラグ
-    let maxCost = 10;                       // 最大コスト設定
-    let numberInterpretation = 'cost';       // 行頭数字の解釈方法
-    let timeDisplayFormat = 'backward';      // 時間表示形式（backward/forward）
-    let modifierAlwaysForward = 'yes';       // +/-の解釈方向
-    let seiaKoyuu2 = 'yes';                 // セイア固有2の有無（デフォルト：あり）
-    let kanoeSS = '0';                      // カノエのレベル（デフォルト：なし）
-    let cherinoSS = '0';                    // チェリノのレベル（デフォルト：なし）
+    // アプリケーション設定値（グローバル設定オブジェクト）
+    let settings = {
+      battle_time: 180,                     // 戦闘時間（秒）
+      ss_enabled: true,                     // SS有効フラグ
+      max_cost: 10,                        // 最大コスト設定
+      number_interpretation: 'cost',        // 行頭数字の解釈方法
+      time_display_format: 'backward',      // 時間表示形式（backward/forward）
+      modifier_always_forward: 'yes',       // +/-の解釈方向
+      seia_koyuu2: 'yes',                  // セイア固有2の有無（デフォルト：あり）
+      kanoe_ss: '0',                       // カノエのレベル（デフォルト：なし）
+      cherino_ss: '0'                      // チェリノのレベル（デフォルト：なし）
+    };
 
     // =============================================================================
     // 💾 セーブ・ロード関連
     // =============================================================================
     
+
+
+    /**
+     * applyLoadedSettings - 読み込まれた設定を現在の設定に安全に適用
+     * @param {Object} loaded_settings - 読み込まれた設定オブジェクト（一部のキーが未定義の可能性がある）
+     * 
+     * loaded_settingsは基本的にsettingsと同じ構造を持つが、いくつかのキーが
+     * nullや未定義の場合がある。定義されている部分のみ現在の設定を上書きする。
+     * 後方互換性のため、TLセーブデータにsettingsキーが含まれていない場合でも
+     * 安全に処理できるように設計されている。
+     */
+    function applyLoadedSettings(loaded_settings) {
+      if (!loaded_settings || typeof loaded_settings !== 'object') {
+        console.log('設定データが無効または存在しません');
+        return;
+      }
+
+      // 定義されているキーのみを現在の設定に適用
+      for (const key in loaded_settings) {
+        if (loaded_settings.hasOwnProperty(key) && 
+            settings.hasOwnProperty(key) && 
+            loaded_settings[key] !== null && 
+            loaded_settings[key] !== undefined) {
+          settings[key] = loaded_settings[key];
+        }
+      }
+
+      console.log('設定を適用しました:', settings);
+    }
+    
     /**
      * saveSettings - アプリケーション設定をlocalStorageに保存
-     * 戦闘時間、SS設定、コスト制限、表示形式等のユーザー設定を永続化する
+     * グローバル設定オブジェクトの内容を永続化する
      */
     function saveSettings() {
-      const settings = {
-        battleTime,
-        ssEnabled,
-        maxCost,
-        numberInterpretation,
-        timeDisplayFormat,
-        modifierAlwaysForward,
-        seiaKoyuu2,
-        kanoeSS,
-        cherinoSS
-      };
       localStorage.setItem('tl-assistant-settings', JSON.stringify(settings));
     }
 
     /**
      * loadSettings - localStorageからアプリケーション設定を復元
-     * 保存された設定値を読み込み、グローバル変数に適用する
+     * 保存された設定値を読み込み、グローバル設定オブジェクトに適用する
      * エラー時は警告を出力し、デフォルト値を維持する
      */
     function loadSettings() {
       try {
-        const savedSettings = localStorage.getItem('tl-assistant-settings');
-        if (savedSettings) {
-          const settings = JSON.parse(savedSettings);
+        const savedSettingsStr = localStorage.getItem('tl-assistant-settings');
+        if (savedSettingsStr) {
+          const savedSettings = JSON.parse(savedSettingsStr);
           
-          // 保存された設定を復元（undefined チェックで安全性を確保）
-          if (settings.battleTime !== undefined) battleTime = settings.battleTime;
-          if (settings.ssEnabled !== undefined) ssEnabled = settings.ssEnabled;
-          if (settings.maxCost !== undefined) maxCost = settings.maxCost;
-          if (settings.numberInterpretation !== undefined) numberInterpretation = settings.numberInterpretation;
-          if (settings.timeDisplayFormat !== undefined) timeDisplayFormat = settings.timeDisplayFormat;
-          if (settings.modifierAlwaysForward !== undefined) modifierAlwaysForward = settings.modifierAlwaysForward;
-          if (settings.seiaKoyuu2 !== undefined) seiaKoyuu2 = settings.seiaKoyuu2;
-          if (settings.kanoeSS !== undefined) kanoeSS = settings.kanoeSS;
-          if (settings.cherinoSS !== undefined) cherinoSS = settings.cherinoSS;
+          // 古い形式の設定データをマイグレーション
+          if (savedSettings.battleTime !== undefined) {
+            // 旧形式からの変換
+            settings.battle_time = savedSettings.battleTime || settings.battle_time;
+            settings.ss_enabled = savedSettings.ssEnabled !== undefined ? savedSettings.ssEnabled : settings.ss_enabled;
+            settings.max_cost = savedSettings.maxCost || settings.max_cost;
+            settings.number_interpretation = savedSettings.numberInterpretation || settings.number_interpretation;
+            settings.time_display_format = savedSettings.timeDisplayFormat || settings.time_display_format;
+            settings.modifier_always_forward = savedSettings.modifierAlwaysForward || settings.modifier_always_forward;
+            settings.seia_koyuu2 = savedSettings.seiaKoyuu2 || settings.seia_koyuu2;
+            settings.kanoe_ss = savedSettings.kanoeSS || settings.kanoe_ss;
+            settings.cherino_ss = savedSettings.cherinoSS || settings.cherino_ss;
+          } else {
+            // 新形式の設定データを直接適用
+            Object.assign(settings, savedSettings);
+          }
           
           console.log('設定を復元しました:', settings);
         }
@@ -964,7 +991,7 @@
       const ttButtons = Array.from(document.querySelectorAll('.btn[data-tt]'));
       ttButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-          battleTime = Number(btn.dataset.tt);
+          settings.battle_time = Number(btn.dataset.tt);
           updateActiveButtons();
           saveSettings(); // 設定を自動保存
           triggerAutoUpdate();
@@ -975,7 +1002,7 @@
       const ssButtons = Array.from(document.querySelectorAll('.btn[data-ss]'));
       ssButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-          ssEnabled = btn.dataset.ss === 'on';
+          settings.ss_enabled = btn.dataset.ss === 'on';
           updateActiveButtons();
           saveSettings(); // 設定を自動保存
           triggerAutoUpdate();
@@ -986,7 +1013,7 @@
       const limitButtons = Array.from(document.querySelectorAll('.btn[data-limit]'));
       limitButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-          maxCost = Number(btn.dataset.limit);
+          settings.max_cost = Number(btn.dataset.limit);
           updateActiveButtons();
           saveSettings(); // 設定を自動保存
           triggerAutoUpdate();
@@ -997,7 +1024,7 @@
       const numberButtons = Array.from(document.querySelectorAll('.btn[data-number]'));
       numberButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-          numberInterpretation = btn.dataset.number;
+          settings.number_interpretation = btn.dataset.number;
           updateActiveButtons();
           saveSettings(); // 設定を自動保存
           triggerAutoUpdate();
@@ -1008,7 +1035,7 @@
       const displayButtons = Array.from(document.querySelectorAll('.btn[data-display]'));
       displayButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-          timeDisplayFormat = btn.dataset.display;
+          settings.time_display_format = btn.dataset.display;
           updateActiveButtons();
           saveSettings(); // 設定を自動保存
           triggerAutoUpdate();
@@ -1019,7 +1046,7 @@
       const modifierButtons = Array.from(document.querySelectorAll('.btn[data-modifier]'));
       modifierButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-          modifierAlwaysForward = btn.dataset.modifier;
+          settings.modifier_always_forward = btn.dataset.modifier;
           updateActiveButtons();
           saveSettings(); // 設定を自動保存
           triggerAutoUpdate();
@@ -1030,7 +1057,7 @@
       const seiaButtons = Array.from(document.querySelectorAll('.btn[data-seia]'));
       seiaButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-          seiaKoyuu2 = btn.dataset.seia;
+          settings.seia_koyuu2 = btn.dataset.seia;
           updateActiveButtons();
           saveSettings(); // 設定を自動保存
           triggerAutoUpdate();
@@ -1041,7 +1068,7 @@
       const kanoeButtons = Array.from(document.querySelectorAll('.btn[data-kanoe]'));
       kanoeButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-          kanoeSS = btn.dataset.kanoe;
+          settings.kanoe_ss = btn.dataset.kanoe;
           updateActiveButtons();
           saveSettings(); // 設定を自動保存
           triggerAutoUpdate();
@@ -1052,7 +1079,7 @@
       const cherinoButtons = Array.from(document.querySelectorAll('.btn[data-cherino]'));
       cherinoButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-          cherinoSS = btn.dataset.cherino;
+          settings.cherino_ss = btn.dataset.cherino;
           updateActiveButtons();
           saveSettings(); // 設定を自動保存
           triggerAutoUpdate();
@@ -1070,58 +1097,58 @@
       const ttButtons = Array.from(document.querySelectorAll('.btn[data-tt]'));
       ttButtons.forEach(btn => {
         const v = Number(btn.dataset.tt);
-        btn.classList.toggle('active', v === battleTime);
+        btn.classList.toggle('active', v === settings.battle_time);
       });
-      document.getElementById('currentTT').textContent = `(現在: ${battleTime}秒)`;
+      document.getElementById('currentTT').textContent = `(現在: ${settings.battle_time}秒)`;
 
       // SSボタンのアクティブ状態更新
       const ssButtons = Array.from(document.querySelectorAll('.btn[data-ss]'));
       ssButtons.forEach(btn => {
         const isOn = btn.dataset.ss === 'on';
-        btn.classList.toggle('active', isOn === ssEnabled);
+        btn.classList.toggle('active', isOn === settings.ss_enabled);
       });
-      document.getElementById('currentSS').textContent = `(現在: ${ssEnabled ? 'オン' : 'オフ'})`;
+      document.getElementById('currentSS').textContent = `(現在: ${settings.ss_enabled ? 'オン' : 'オフ'})`;
 
       // 最大コストボタンのアクティブ状態更新
       const limitButtons = Array.from(document.querySelectorAll('.btn[data-limit]'));
       limitButtons.forEach(btn => {
         const v = Number(btn.dataset.limit);
-        btn.classList.toggle('active', v === maxCost);
+        btn.classList.toggle('active', v === settings.max_cost);
       });
-      document.getElementById('currentLimit').textContent = `(現在: ${maxCost})`;
+      document.getElementById('currentLimit').textContent = `(現在: ${settings.max_cost})`;
 
       // 行頭数字解釈ボタンのアクティブ状態更新
       const numberButtons = Array.from(document.querySelectorAll('.btn[data-number]'));
       numberButtons.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.number === numberInterpretation);
+        btn.classList.toggle('active', btn.dataset.number === settings.number_interpretation);
       });
-      document.getElementById('currentNumber').textContent = `(現在: ${numberInterpretation === 'time' ? 'タイム' : 'コストタイミング'})`;
+      document.getElementById('currentNumber').textContent = `(現在: ${settings.number_interpretation === 'time' ? 'タイム' : 'コストタイミング'})`;
 
       // 時間表示形式ボタンのアクティブ状態更新
       const displayButtons = Array.from(document.querySelectorAll('.btn[data-display]'));
       displayButtons.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.display === timeDisplayFormat);
+        btn.classList.toggle('active', btn.dataset.display === settings.time_display_format);
       });
-      document.getElementById('currentDisplay').textContent = `(現在: ${timeDisplayFormat === 'backward' ? 'ゲーム内表示' : '経過時間'})`;
+      document.getElementById('currentDisplay').textContent = `(現在: ${settings.time_display_format === 'backward' ? 'ゲーム内表示' : '経過時間'})`;
 
       // +/-解釈ボタンのアクティブ状態更新
       const modifierButtons = Array.from(document.querySelectorAll('.btn[data-modifier]'));
       modifierButtons.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.modifier === modifierAlwaysForward);
+        btn.classList.toggle('active', btn.dataset.modifier === settings.modifier_always_forward);
       });
-      document.getElementById('currentModifier').textContent = `(現在: ${modifierAlwaysForward === 'yes' ? '常に秒後/秒前' : '表示形式に依存'})`;
+      document.getElementById('currentModifier').textContent = `(現在: ${settings.modifier_always_forward === 'yes' ? '常に秒後/秒前' : '表示形式に依存'})`;
 
       // セイア固有2ボタンのアクティブ状態更新
       const seiaButtons = Array.from(document.querySelectorAll('.btn[data-seia]'));
       seiaButtons.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.seia === seiaKoyuu2);
+        btn.classList.toggle('active', btn.dataset.seia === settings.seia_koyuu2);
       });
-      document.getElementById('currentSeia').textContent = `(現在: ${seiaKoyuu2 === 'yes' ? 'あり' : 'なし'})`;
+      document.getElementById('currentSeia').textContent = `(現在: ${settings.seia_koyuu2 === 'yes' ? 'あり' : 'なし'})`;
 
       // カノエボタンのアクティブ状態更新
       const kanoeButtons = Array.from(document.querySelectorAll('.btn[data-kanoe]'));
       kanoeButtons.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.kanoe === kanoeSS);
+        btn.classList.toggle('active', btn.dataset.kanoe === settings.kanoe_ss);
       });
       const kanoeLabels = {
         '0': 'なし',
@@ -1130,12 +1157,12 @@
         '3': '本人+2',
         '4': '本人+3'
       };
-      document.getElementById('currentKanoe').textContent = `(現在: ${kanoeLabels[kanoeSS] || 'なし'})`;
+      document.getElementById('currentKanoe').textContent = `(現在: ${kanoeLabels[settings.kanoe_ss] || 'なし'})`;
 
       // チェリノボタンのアクティブ状態更新
       const cherinoButtons = Array.from(document.querySelectorAll('.btn[data-cherino]'));
       cherinoButtons.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.cherino === cherinoSS);
+        btn.classList.toggle('active', btn.dataset.cherino === settings.cherino_ss);
       });
       const cherinoLabels = {
         '0': 'なし',
@@ -1145,7 +1172,7 @@
         '4': '本人+3'
       };
       // AI向け指示：これは残す
-      document.getElementById('currentCherino').textContent = `(現在: ${cherinoLabels[cherinoSS] || 'なし'})`;
+      document.getElementById('currentCherino').textContent = `(現在: ${cherinoLabels[settings.cherino_ss] || 'なし'})`;
     }
 
     // =============================================================================
@@ -1309,19 +1336,8 @@
         }
 
         ///////////////////////////////////////////////////////
-        // 【重要】この部分で設定を取得し、この部分を各種処理関数に渡す
+        // 【重要】グローバル設定オブジェクトを直接使用
         ///////////////////////////////////////////////////////
-        const settings = {
-          max_cost: maxCost,
-          battle_time: battleTime,
-          number_interpretation: numberInterpretation,
-          time_display_format: timeDisplayFormat,
-          modifier_always_forward: modifierAlwaysForward,
-          ss_enabled: ssEnabled,
-          seia_koyuu2: seiaKoyuu2,
-          kanoe_ss: kanoeSS,
-          cherino_ss: cherinoSS
-        };
 
         // 入力処理フェーズ
         try {
@@ -1395,7 +1411,7 @@
       // HTMLタイムライン表示
       try {
         const result = window.TimelineFormatter.generateTimelineNew(timelineJSON, {
-          battle_time: battleTime
+          battle_time: settings.battle_time
         });
         document.getElementById('timelineDisplay').innerHTML = result.html;
       } catch (error) {
@@ -1406,7 +1422,7 @@
       // テキストタイムライン生成
       try {
         const result = window.TimelineFormatter.generateTimelineNew(timelineJSON, {
-          battle_time: battleTime
+          battle_time: settings.battle_time
         });
         document.getElementById('timelineTextOutput').value = result.text;
       } catch (error) {
