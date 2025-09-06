@@ -8,21 +8,8 @@
 
   console.log('timeline-formatter.js: スクリプト開始');
 
-  // 共通ライブラリの参照
-  const TLFormatterCommon = (() => {
-    if (typeof module !== 'undefined' && module.exports) {
-      // Node.js環境
-      return require('./tl-common.js');
-    } else if (typeof window !== 'undefined' && window.TLCommon) {
-      // ブラウザ環境
-      return window.TLCommon;
-    } else {
-      throw new Error('tl-common.js が読み込まれていません。先に tl-common.js を読み込んでください。');
-    }
-  })();
-
   // コストポイント変換定数
-  const COST_POINT_UNIT = TLFormatterCommon.COST_CONSTANTS.COST_POINT_UNIT;
+  const COST_POINT_UNIT = 30 * 10000;  // コスト1.0 = 300,000ポイント
 
   /**
    * 時間を mm:ss.fff 形式にフォーマット

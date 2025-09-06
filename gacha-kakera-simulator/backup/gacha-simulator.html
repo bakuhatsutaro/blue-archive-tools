@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブルーアーカイブ ガチャシミュレーター</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="number"] {
+            width: 200px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .result-section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+        }
+        .result-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .calculation-details {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        .loading {
+            display: none;
+            color: #666;
+            font-style: italic;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ブルーアーカイブ ガチャシミュレーター</h1>
+        
+        <div class="form-group">
+            <label for="simulations">シミュレーション回数:</label>
+            <input type="number" id="simulations" value="1000" min="100" max="10000">
+        </div>
+        
+        <div class="form-group">
+            <label for="threshold">ガチャ継続判定値（10連あたりの価値）:</label>
+            <input type="number" id="threshold" value="70" min="1" max="200">
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="includeNonPickupMoji" checked>
+                非ピックアップ星3の神名文字を価値に含める
+            </label>
+        </div>
+        
+        <button onclick="runSimulation()">シミュレーション実行</button>
+        <button onclick="clearResults()">結果クリア</button>
+        
+        <div class="loading" id="loading">計算中...</div>
+        
+        <div id="results" class="results" style="display: none;">
+            <h2>シミュレーション結果</h2>
+            
+            <div class="result-section">
+                <h3>1. 10*k連でピックアップ獲得後、200連まで続けた場合の期待値</h3>
+                <div id="scenario1-results"></div>
+                <div class="calculation-details">
+                    ※ 10連、20連、30連...各段階でピックアップを獲得した場合の結果を表示
+                </div>
+            </div>
+            
+            <div class="result-section">
+                <h3>2. ピックアップ1回獲得後の最適停止戦略の期待値</h3>
+                <div id="scenario2-results"></div>
+                <div class="calculation-details">
+                    ※ 10連ごとに継続判定を行い、期待価値が閾値を下回ったら停止
+                </div>
+            </div>
+            
+            <div class="result-section">
+                <h3>デバッグ: シナリオ2のシミュレーション過程（10回分）</h3>
+                <div id="scenario2-debug"></div>
+                <div class="calculation-details">
+                    ※ 各シミュレーションの詳細な過程を表示
+                </div>
+            </div>
+            
+            <div class="result-section">
+                <h3>3. 段階的撤退戦略の期待値</h3>
+                <div id="scenario3-results"></div>
+                <div class="calculation-details">
+                    ※ x連まではピックアップ獲得で即撤退、x+10連からは天井（200連）まで継続（x=100,110,...190）
+                </div>
+            </div>
+            
+            <div class="result-section">
+                <h3>デバッグ: シナリオ3のシミュレーション過程（撤退ライン100連、10回分）</h3>
+                <div id="scenario3-debug"></div>
+                <div class="calculation-details">
+                    ※ 各シミュレーションの詳細な過程を表示
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ガチャの確率設定
+        const RATES = {
+            first9: {
+                pickupSSR: 0.007,    // 0.7%
+                nonPickupSSR: 0.023, // 2.3%
+                SR: 0.185,           // 18.5%
+                R: 0.785             // 78.5%
+            },
+            tenth: {
+                pickupSSR: 0.007,    // 0.7%
+                nonPickupSSR: 0.023, // 2.3%
+                SR: 0.97,            // 97%
+                R: 0                 // 0%
+            }
+        };
+
+        // 報酬設定
+        const REWARDS = {
+            R: { kakera: 1 },
+            SR: { kakera: 10 },
+            SSR: { kakera: 50 },
+            pickupFirst: { moji: 200 },
+            pickupSecond: { moji: 100 },
+            nonPickupSSR: { moji: 30 }
+        };
+
+        const MOJI_TO_KAKERA_RATE = 5; // 神名文字1個 = 神名のカケラ5個
+
+        // 単発ガチャの実行
+        function singleGacha(isLastPull = false) {
+            const rates = isLastPull ? RATES.tenth : RATES.first9;
+            const rand = Math.random();
+            
+            if (rand < rates.pickupSSR) {
+                return { type: 'pickupSSR' };
+            } else if (rand < rates.pickupSSR + rates.nonPickupSSR) {
+                return { type: 'nonPickupSSR' };
+            } else if (rand < rates.pickupSSR + rates.nonPickupSSR + rates.SR) {
+                return { type: 'SR' };
+            } else {
+                return { type: 'R' };
+            }
+        }
+
+        // 10連ガチャの実行
+        function tenPullGacha() {
+            const results = [];
+            for (let i = 0; i < 9; i++) {
+                results.push(singleGacha(false));
+            }
+            results.push(singleGacha(true)); // 最後の1連
+            return results;
+        }
+
+        // 報酬計算
+        function calculateRewards(gachaResults, hasPickupBefore = false) {
+            let kakera = 0;
+            let pickupMoji = 0;
+            let nonPickupMoji = 0;
+            let pickupCount = 0;
+            
+            for (const result of gachaResults) {
+                switch (result.type) {
+                    case 'R':
+                        kakera += REWARDS.R.kakera;
+                        break;
+                    case 'SR':
+                        kakera += REWARDS.SR.kakera;
+                        break;
+                    case 'pickupSSR':
+                        kakera += REWARDS.SSR.kakera;
+                        pickupCount++;
+                        if (!hasPickupBefore && pickupCount === 1) {
+                            pickupMoji += REWARDS.pickupFirst.moji;
+                        } else {
+                            pickupMoji += REWARDS.pickupSecond.moji;
+                        }
+                        break;
+                    case 'nonPickupSSR':
+                        kakera += REWARDS.SSR.kakera;
+                        nonPickupMoji += REWARDS.nonPickupSSR.moji;
+                        break;
+                }
+            }
+            
+            return { kakera, pickupMoji, nonPickupMoji, pickupCount };
+        }
+
+        // シナリオ1: 10*k連でピックアップ獲得後、200連まで続ける
+        function scenario1Simulation(simCount, includeNonPickupMoji) {
+            const results = {};
+            
+            // 10連, 20連, ..., 190連の各段階でピックアップを獲得した場合
+            for (let k = 1; k <= 19; k++) {
+                const pulls = k * 10;
+                const remainingPulls = 200 - pulls;
+                
+                let totalKakera = 0;
+                let totalPickupMoji = 0;
+                let totalNonPickupMoji = 0;
+                let totalCombined = 0;
+                
+                for (let sim = 0; sim < simCount; sim++) {
+                    const gachaResults = [];
+                    let pickupCount = 0;
+                    
+                    // 残りの連数分ガチャを実行
+                    for (let i = 0; i < remainingPulls / 10; i++) {
+                        gachaResults.push(...tenPullGacha());
+                    }
+                    
+                    const rewards = calculateRewards(gachaResults, true); // 既にピックアップ持ちとして計算
+                    pickupCount += rewards.pickupCount;
+                    
+                    // 200連保証の効果：200連に到達してピックアップが出なかった場合、追加で1体保証
+                    let guaranteedPickup = 0;
+                    let guaranteedPickupMoji = 0;
+                    if (pulls + remainingPulls === 200 && pickupCount === 0) {
+                        guaranteedPickup = 50; // ピックアップSSRのカケラ
+                        guaranteedPickupMoji = 100; // 2回目以降のピックアップ報酬（既に1体持っているため）
+                    }
+                    
+                    const pickupMojiAsKakera = (rewards.pickupMoji + guaranteedPickupMoji) * MOJI_TO_KAKERA_RATE;
+                    const nonPickupMojiAsKakera = includeNonPickupMoji ? rewards.nonPickupMoji * MOJI_TO_KAKERA_RATE : 0;
+                    const combined = rewards.kakera + guaranteedPickup + pickupMojiAsKakera + nonPickupMojiAsKakera;
+                    
+                    totalKakera += rewards.kakera + guaranteedPickup;
+                    totalPickupMoji += pickupMojiAsKakera;
+                    totalNonPickupMoji += nonPickupMojiAsKakera;
+                    totalCombined += combined;
+                }
+                
+                results[pulls] = {
+                    kakera: totalKakera / simCount,
+                    pickupMojiAsKakera: totalPickupMoji / simCount,
+                    nonPickupMojiAsKakera: totalNonPickupMoji / simCount,
+                    combined: totalCombined / simCount,
+                    perTen: (totalCombined / simCount) / (remainingPulls / 10)
+                };
+            }
+            
+            return results;
+        }
+
+        // シナリオ2: 最適停止戦略
+        function scenario2Simulation(simCount, threshold, includeNonPickupMoji, scenario1Results = null) {
+            let totalKakera = 0;
+            let totalPickupMojiAsKakera = 0;
+            let totalNonPickupMojiAsKakera = 0;
+            let totalCombined = 0;
+            let totalPulls = 0;
+            let totalPickupCount = 0;
+            let validSims = 0;
+            
+            for (let sim = 0; sim < simCount; sim++) {
+                let pullCount = 0;
+                let hasPickup = false;
+                let kakera = 0;
+                let pickupMoji = 0;
+                let nonPickupMoji = 0;
+                let pickupCountTotal = 0;
+                
+
+                
+                // 10連ずつ回して、適切なタイミングで停止判定を行う
+                for (pullCount = 10; pullCount <= 200; pullCount += 10) {
+                    // 10連実行
+                    const tenPull = tenPullGacha();
+                    const rewards = calculateRewards(tenPull, hasPickup);
+                    
+                    kakera += rewards.kakera;
+                    pickupMoji += rewards.pickupMoji;
+                    nonPickupMoji += rewards.nonPickupMoji;
+                    pickupCountTotal += rewards.pickupCount;
+                    
+                    // ピックアップを初めて獲得した場合
+                    if (!hasPickup && rewards.pickupCount > 0) {
+                        hasPickup = true;
+                    }
+                    
+                    // ピックアップを獲得している場合の継続判定
+                    if (hasPickup && pullCount < 200) {
+                        const remainingPulls = 200 - pullCount;
+                        
+                        // 残り連数での期待価値を計算（シナリオ1の結果を使用）
+                        const expectedValue = calculateExpectedValueForRemainingPulls(remainingPulls, pickupCountTotal, includeNonPickupMoji, scenario1Results);
+                        
+                        if (expectedValue < threshold) {
+                            break; // 閾値を下回ったので停止
+                        }
+                    }
+                }
+                
+                // 200連に到達してもピックアップが出なかった場合の保証
+                if (!hasPickup && pullCount >= 200) {
+                    kakera += 50; // 200連で保証されるピックアップのカケラ
+                    pickupMoji += 200; // 初回ピックアップ報酬
+                    hasPickup = true;
+                    pickupCountTotal = 1;
+                }
+                
+                // 200連に到達してピックアップを持っている場合の保証効果
+                if (hasPickup && pullCount >= 200) {
+                    kakera += 50; // 200連保証のピックアップSSRカケラ
+                    pickupMoji += 100; // 2回目以降のピックアップ報酬
+                    pickupCountTotal += 1; // 保証ピックアップを追加
+                }
+                
+                // 全体の価値を計算
+                const allPickupMojiAsKakera = pickupMoji * MOJI_TO_KAKERA_RATE;
+                const allNonPickupMojiAsKakera = includeNonPickupMoji ? nonPickupMoji * MOJI_TO_KAKERA_RATE : 0;
+                const allCombined = kakera + allPickupMojiAsKakera + allNonPickupMojiAsKakera;
+                
+                // 各シミュレーションの結果を合計に加算
+                totalKakera += kakera;
+                totalPickupMojiAsKakera += allPickupMojiAsKakera;
+                totalNonPickupMojiAsKakera += allNonPickupMojiAsKakera;
+                totalCombined += allCombined;
+                totalPickupCount += pickupCountTotal;
+                totalPulls += pullCount;
+                validSims++;
+            }
+            
+            return {
+                kakera: (totalKakera / totalPulls) * 10,
+                pickupMojiAsKakera: (totalPickupMojiAsKakera / totalPulls) * 10,
+                nonPickupMojiAsKakera: (totalNonPickupMojiAsKakera / totalPulls) * 10,
+                combined: (totalCombined / totalPulls) * 10,
+                pickupCount: (totalPickupCount / totalPulls) * 10,
+                averagePulls: totalPulls / validSims
+            };
+        }
+
+        // シナリオ3: 段階的撤退戦略
+        function scenario3Simulation(simCount, includeNonPickupMoji) {
+            const results = {};
+            
+            // x=100, 110, 120, ..., 190連まで
+            for (let x = 100; x <= 190; x += 10) {
+                let totalKakera = 0;
+                let totalPickupMoji = 0;
+                let totalNonPickupMoji = 0;
+                let totalCombined = 0;
+                let totalPulls = 0;
+                let validSims = 0;
+                
+                for (let sim = 0; sim < simCount; sim++) {
+                    let pullCount = 0;
+                    let kakera = 0;
+                    let pickupMoji = 0;
+                    let nonPickupMoji = 0;
+                    let pickupCountTotal = 0;
+                    let shouldExit = false;
+                    
+                    // フェーズ1: 10連からx連まで（ピックアップが出たら即撤退）
+                    for (let currentPull = 10; currentPull <= x && !shouldExit; currentPull += 10) {
+                        const tenPull = tenPullGacha();
+                        const rewards = calculateRewards(tenPull, pickupCountTotal > 0);
+                        
+                        kakera += rewards.kakera;
+                        pickupMoji += rewards.pickupMoji;
+                        nonPickupMoji += rewards.nonPickupMoji;
+                        pullCount = currentPull;
+                        pickupCountTotal += rewards.pickupCount;
+                        
+                        // x連以下でピックアップが出たら即撤退
+                        if (rewards.pickupCount > 0) {
+                            shouldExit = true;
+                            break;
+                        }
+                    }
+                    
+                    // フェーズ2: x連でピックアップが出なかった場合の処理
+                    if (!shouldExit && pullCount === x) {
+                        // x+10連から200連まで継続（ピックアップが出ても撤退しない）
+                        for (let currentPull = x + 10; currentPull <= 200; currentPull += 10) {
+                            const tenPull = tenPullGacha();
+                            const rewards = calculateRewards(tenPull, pickupCountTotal > 0);
+                            
+                            kakera += rewards.kakera;
+                            pickupMoji += rewards.pickupMoji;
+                            nonPickupMoji += rewards.nonPickupMoji;
+                            pullCount = currentPull;
+                            pickupCountTotal += rewards.pickupCount;
+                        }
+                        
+                        // 200連に到達してもピックアップが出なかった場合の保証
+                        if (pickupCountTotal === 0) {
+                            // ピックアップが0体の場合
+                            kakera += 50;
+                            pickupMoji += 200; // 初回報酬
+                            pickupCountTotal = 1;
+                        } else {
+                            // ピックアップが1体以上の場合でも200連保証
+                            kakera += 50;
+                            pickupMoji += 100; // 2回目以降報酬
+                            pickupCountTotal += 1; // 保証ピックアップを追加
+                        }
+                    }
+                    
+                    const pickupMojiAsKakera = pickupMoji * MOJI_TO_KAKERA_RATE;
+                    const nonPickupMojiAsKakera = includeNonPickupMoji ? nonPickupMoji * MOJI_TO_KAKERA_RATE : 0;
+                    const combined = kakera + pickupMojiAsKakera + nonPickupMojiAsKakera;
+                    const pullSets = pullCount / 10;
+                    
+                    if (pullSets > 0) {
+                        totalKakera += kakera;
+                        totalPickupMoji += pickupMojiAsKakera;
+                        totalNonPickupMoji += nonPickupMojiAsKakera;
+                        totalCombined += combined;
+                        totalPulls += pullCount;
+                        validSims++;
+                    }
+                }
+                
+                if (validSims > 0) {
+                    const avgPulls = totalPulls / validSims;
+                    const avgPullSets = avgPulls / 10;
+                    
+                    results[x] = {
+                        kakera: (totalKakera / totalPulls) * 10,
+                        pickupMojiAsKakera: (totalPickupMoji / totalPulls) * 10,
+                        nonPickupMojiAsKakera: (totalNonPickupMoji / totalPulls) * 10,
+                        combined: (totalCombined / totalPulls) * 10,
+                        averagePulls: avgPulls,
+                        perTen: (totalCombined / totalPulls) * 10
+                    };
+                }
+            }
+            
+            return results;
+        }
+
+        // デバッグ用：シナリオ2の詳細シミュレーション
+        function scenario2DebugSimulation(threshold, includeNonPickupMoji, scenario1Results = null) {
+            const debugResults = [];
+            
+            for (let sim = 0; sim < 10; sim++) {
+                let pullCount = 0;
+                let hasPickup = false;
+                let kakera = 0;
+                let pickupMoji = 0;
+                let nonPickupMoji = 0;
+                let pickupCountTotal = 0;
+                let log = [];
+                
+                // 200連まで回して、最初のピックアップを獲得
+                while (pullCount < 200 && !hasPickup) {
+                    const tenPull = tenPullGacha();
+                    const rewards = calculateRewards(tenPull, false);
+                    
+                    kakera += rewards.kakera;
+                    pickupMoji += rewards.pickupMoji;
+                    nonPickupMoji += rewards.nonPickupMoji;
+                    pullCount += 10;
+                    pickupCountTotal += rewards.pickupCount;
+                    
+                    const pullDetails = tenPull.map(result => result.type).join(', ');
+                    const currentTotal = kakera + (pickupMoji + (includeNonPickupMoji ? nonPickupMoji : 0)) * 5;
+                    
+                    log.push(`${pullCount}連目: [${pullDetails}] ピックアップ${rewards.pickupCount}体 累計価値=${currentTotal.toFixed(1)}`);
+                    
+                    if (rewards.pickupCount > 0) {
+                        hasPickup = true;
+                        log.push(`→初回ピックアップ獲得、継続判定開始`);
+                        break;
+                    }
+                }
+                
+                // ピックアップを獲得できなかった場合は200連で強制終了
+                if (!hasPickup && pullCount >= 200) {
+                    kakera += 50;
+                    pickupMoji += 200;
+                    hasPickup = true;
+                    pickupCountTotal = 1;
+                    log.push(`→200連保証: ピックアップ1体+神名文字200個`);
+                }
+                
+                // ピックアップ獲得後の継続判定
+                while (pullCount < 200 && hasPickup) {
+                    const remainingPulls = 200 - pullCount;
+                    
+                    // 残り連数での期待価値を計算（シナリオ1の結果を使用）
+                    const expectedValue = calculateExpectedValueForRemainingPulls(remainingPulls, pickupCountTotal, includeNonPickupMoji, scenario1Results);
+                    
+                    log.push(`→残り${remainingPulls}連での期待価値: ${expectedValue.toFixed(1)} (閾値: ${threshold})`);
+                    
+                    if (expectedValue < threshold) {
+                        log.push(`→期待価値が閾値を下回ったため${pullCount}連で撤退`);
+                        break;
+                    }
+                    
+                    log.push(`→期待価値が閾値を上回るため継続`);
+                    
+                    // 10連実行
+                    const tenPull = tenPullGacha();
+                    const rewards = calculateRewards(tenPull, true);
+                    
+                    kakera += rewards.kakera;
+                    pickupMoji += rewards.pickupMoji;
+                    nonPickupMoji += rewards.nonPickupMoji;
+                    pullCount += 10;
+                    pickupCountTotal += rewards.pickupCount;
+                    
+                    const pullDetails = tenPull.map(result => result.type).join(', ');
+                    const currentTotal = kakera + (pickupMoji + (includeNonPickupMoji ? nonPickupMoji : 0)) * 5;
+                    
+                    if (rewards.pickupCount > 0) {
+                        log.push(`${pullCount}連目: [${pullDetails}] ピックアップ${rewards.pickupCount}体 累計価値=${currentTotal.toFixed(1)} (継続)`);
+                    } else {
+                        log.push(`${pullCount}連目: [${pullDetails}] 累計価値=${currentTotal.toFixed(1)}`);
+                    }
+                }
+                
+                // 200連に到達した場合の保証効果
+                if (pullCount === 200 && hasPickup) {
+                    kakera += 50; // 200連保証のピックアップSSRカケラ
+                    pickupMoji += 100; // 2回目以降のピックアップ報酬
+                    pickupCountTotal += 1; // 保証ピックアップを追加
+                    log.push(`→200連到達保証: ピックアップ1体+神名文字100個`);
+                }
+                
+                const allPickupMojiAsKakera = pickupMoji * 5;
+                const allNonPickupMojiAsKakera = includeNonPickupMoji ? nonPickupMoji * 5 : 0;
+                const totalValue = kakera + allPickupMojiAsKakera + allNonPickupMojiAsKakera;
+                const perTenValue = totalValue / (pullCount / 10);
+                
+                debugResults.push({
+                    simulation: sim + 1,
+                    finalPulls: pullCount,
+                    finalValue: totalValue,
+                    perTenValue: perTenValue,
+                    pickupCount: pickupCountTotal,
+                    log: log
+                });
+            }
+            
+            return debugResults;
+        }
+
+        // デバッグ用：シナリオ3の詳細シミュレーション（撤退ライン100連）
+        function scenario3DebugSimulation(includeNonPickupMoji) {
+            const debugResults = [];
+            const x = 100; // 撤退ライン固定
+            
+            for (let sim = 0; sim < 10; sim++) {
+                let pullCount = 0;
+                let kakera = 0;
+                let pickupMoji = 0;
+                let nonPickupMoji = 0;
+                let pickupCountTotal = 0;
+                let shouldExit = false;
+                let log = [];
+                
+                // フェーズ1: 10連からx連まで（ピックアップが出たら即撤退）
+                for (let currentPull = 10; currentPull <= x && !shouldExit; currentPull += 10) {
+                    const tenPull = tenPullGacha();
+                    const rewards = calculateRewards(tenPull, pickupCountTotal > 0);
+                    
+                    kakera += rewards.kakera;
+                    pickupMoji += rewards.pickupMoji;
+                    nonPickupMoji += rewards.nonPickupMoji;
+                    pullCount = currentPull;
+                    pickupCountTotal += rewards.pickupCount;
+                    
+                    // ガチャ結果の詳細を記録
+                    const pullDetails = tenPull.map(result => result.type).join(', ');
+                    const currentTotal = kakera + (pickupMoji + (includeNonPickupMoji ? nonPickupMoji : 0)) * 5;
+                    
+                    log.push(`${currentPull}連目: [${pullDetails}] ピックアップ${rewards.pickupCount}体 累計価値=${currentTotal.toFixed(1)}`);
+                    
+                    // x連以下でピックアップが出たら即撤退
+                    if (rewards.pickupCount > 0) {
+                        shouldExit = true;
+                        log.push(`→ピックアップ獲得により${currentPull}連で撤退`);
+                        break;
+                    }
+                }
+                
+                // フェーズ2: x連でピックアップが出なかった場合の処理
+                if (!shouldExit && pullCount === x) {
+                    log.push(`→${x}連でピックアップなし、200連まで継続`);
+                    
+                    // x+10連から200連まで継続（ピックアップが出ても撤退しない）
+                    for (let currentPull = x + 10; currentPull <= 200; currentPull += 10) {
+                        const tenPull = tenPullGacha();
+                        const rewards = calculateRewards(tenPull, pickupCountTotal > 0);
+                        
+                        kakera += rewards.kakera;
+                        pickupMoji += rewards.pickupMoji;
+                        nonPickupMoji += rewards.nonPickupMoji;
+                        pullCount = currentPull;
+                        pickupCountTotal += rewards.pickupCount;
+                        
+                        const pullDetails = tenPull.map(result => result.type).join(', ');
+                        const currentTotal = kakera + (pickupMoji + (includeNonPickupMoji ? nonPickupMoji : 0)) * 5;
+                        
+                        if (rewards.pickupCount > 0) {
+                            log.push(`${currentPull}連目: [${pullDetails}] ピックアップ${rewards.pickupCount}体 累計価値=${currentTotal.toFixed(1)} (継続)`);
+                        } else {
+                            log.push(`${currentPull}連目: [${pullDetails}] 累計価値=${currentTotal.toFixed(1)}`);
+                        }
+                    }
+                    
+                    // 200連保証の処理
+                    if (pickupCountTotal === 0) {
+                        kakera += 50;
+                        pickupMoji += 200;
+                        pickupCountTotal = 1;
+                        log.push(`→200連保証: ピックアップ1体+神名文字200個`);
+                    } else {
+                        kakera += 50;
+                        pickupMoji += 100;
+                        pickupCountTotal += 1;
+                        log.push(`→200連保証: ピックアップ1体+神名文字100個`);
+                    }
+                }
+                
+                const pickupMojiAsKakera = pickupMoji * 5;
+                const nonPickupMojiAsKakera = includeNonPickupMoji ? nonPickupMoji * 5 : 0;
+                const totalValue = kakera + pickupMojiAsKakera + nonPickupMojiAsKakera;
+                
+                debugResults.push({
+                    simulation: sim + 1,
+                    finalPulls: pullCount,
+                    finalValue: totalValue,
+                    pickupCount: pickupCountTotal,
+                    log: log
+                });
+            }
+            
+            return debugResults;
+        }
+
+        // 残り連数での期待価値計算（シナリオ1の結果を使用）
+        function calculateExpectedValueForRemainingPulls(remainingPulls, currentPickupCount = 1, includeNonPickupMoji = true, scenario1Results = null) {
+            if (remainingPulls <= 0) return 0;
+            
+            // シナリオ1の結果を使用
+            if (scenario1Results) {
+                const currentPulls = 200 - remainingPulls;
+                
+                // シナリオ1の結果から対応する期待価値を取得
+                if (scenario1Results[currentPulls]) {
+                    return scenario1Results[currentPulls].perTen;
+                }
+                
+                // 完全一致しない場合は補間または近似値を使用
+                const availableKeys = Object.keys(scenario1Results).map(k => parseInt(k)).sort((a, b) => a - b);
+                
+                // currentPullsより大きい最小の値を見つける
+                for (const key of availableKeys) {
+                    if (key > currentPulls) {
+                        return scenario1Results[key].perTen;
+                    }
+                }
+                
+                // 見つからない場合は最後の値を使用
+                const lastKey = availableKeys[availableKeys.length - 1];
+                if (scenario1Results[lastKey]) {
+                    return scenario1Results[lastKey].perTen;
+                }
+            }
+            
+            // フォールバック: 従来の計算方法
+            const pullSets = Math.floor(remainingPulls / 10);
+            
+            // 10連あたりの期待値を計算
+            let expectedKakera = 0;
+            let expectedPickupMoji = 0;
+            let expectedNonPickupMoji = 0;
+            
+            // 最初の9連の期待値
+            expectedKakera += 9 * (RATES.first9.pickupSSR * REWARDS.SSR.kakera +
+                                 RATES.first9.nonPickupSSR * REWARDS.SSR.kakera +
+                                 RATES.first9.SR * REWARDS.SR.kakera +
+                                 RATES.first9.R * REWARDS.R.kakera);
+            
+            // 最後の1連の期待値
+            expectedKakera += RATES.tenth.pickupSSR * REWARDS.SSR.kakera +
+                             RATES.tenth.nonPickupSSR * REWARDS.SSR.kakera +
+                             RATES.tenth.SR * REWARDS.SR.kakera;
+            
+            // 神名文字の期待値（2回目以降のピックアップとして計算）
+            expectedPickupMoji += 10 * RATES.first9.pickupSSR * REWARDS.pickupSecond.moji;
+            expectedPickupMoji += RATES.tenth.pickupSSR * REWARDS.pickupSecond.moji;
+            
+            expectedNonPickupMoji += 10 * RATES.first9.nonPickupSSR * REWARDS.nonPickupSSR.moji;
+            expectedNonPickupMoji += RATES.tenth.nonPickupSSR * REWARDS.nonPickupSSR.moji;
+            
+            // 200連保証の効果を考慮
+            // 現在のガチャ位置から200連に到達する場合の保証効果
+            let guaranteeBonus = 0;
+            if (remainingPulls >= 200 - (currentPickupCount > 0 ? 0 : 200)) {
+                // ピックアップが出る確率を計算
+                const pickupProbabilityPer10 = 10 * RATES.first9.pickupSSR + RATES.tenth.pickupSSR;
+                const noPuickupProbability = Math.pow(1 - pickupProbabilityPer10, pullSets);
+                
+                // ピックアップが出なかった場合の200連保証
+                guaranteeBonus = noPuickupProbability * (REWARDS.SSR.kakera + REWARDS.pickupSecond.moji * MOJI_TO_KAKERA_RATE) / pullSets;
+            }
+            
+            const pickupMojiAsKakera = expectedPickupMoji * MOJI_TO_KAKERA_RATE;
+            const nonPickupMojiAsKakera = includeNonPickupMoji ? expectedNonPickupMoji * MOJI_TO_KAKERA_RATE : 0;
+            
+            return expectedKakera + pickupMojiAsKakera + nonPickupMojiAsKakera + guaranteeBonus;
+        }
+
+        // メインシミュレーション実行
+        async function runSimulation() {
+            const simCount = parseInt(document.getElementById('simulations').value);
+            const threshold = parseInt(document.getElementById('threshold').value);
+            const includeNonPickupMoji = document.getElementById('includeNonPickupMoji').checked;
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            
+            // 少し遅延を入れてUIを更新
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            try {
+                // シナリオ1の実行
+                const scenario1Results = scenario1Simulation(simCount, includeNonPickupMoji);
+                displayScenario1Results(scenario1Results, includeNonPickupMoji);
+                
+                // シナリオ2の実行
+                const scenario2Results = scenario2Simulation(simCount, threshold, includeNonPickupMoji, scenario1Results);
+                displayScenario2Results(scenario2Results, threshold, includeNonPickupMoji);
+                
+                // デバッグ用シナリオ2の詳細実行
+                const scenario2DebugResults = scenario2DebugSimulation(threshold, includeNonPickupMoji, scenario1Results);
+                displayScenario2DebugResults(scenario2DebugResults);
+                
+                // シナリオ3の実行
+                const scenario3Results = scenario3Simulation(simCount, includeNonPickupMoji);
+                displayScenario3Results(scenario3Results, includeNonPickupMoji);
+                
+                // デバッグ用シナリオ3の詳細実行
+                const scenario3DebugResults = scenario3DebugSimulation(includeNonPickupMoji);
+                displayScenario3DebugResults(scenario3DebugResults);
+                
+                document.getElementById('results').style.display = 'block';
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // シナリオ1結果表示
+        function displayScenario1Results(results, includeNonPickupMoji) {
+            let html = '<table><tr><th>獲得段階</th><th>残り連数</th><th>神名のカケラ</th><th>ピックアップ神名文字価値</th>';
+            if (includeNonPickupMoji) {
+                html += '<th>非ピックアップ神名文字価値</th>';
+            }
+            html += '<th>合計</th><th>10連あたり</th></tr>';
+            
+            for (const [pulls, data] of Object.entries(results)) {
+                const remaining = 200 - parseInt(pulls);
+                html += `<tr>
+                    <td>${pulls}連</td>
+                    <td>${remaining}連</td>
+                    <td>${data.kakera.toFixed(1)}</td>
+                    <td>${data.pickupMojiAsKakera.toFixed(1)}</td>`;
+                if (includeNonPickupMoji) {
+                    html += `<td>${data.nonPickupMojiAsKakera.toFixed(1)}</td>`;
+                }
+                html += `<td>${data.combined.toFixed(1)}</td>
+                    <td>${data.perTen.toFixed(1)}</td>
+                </tr>`;
+            }
+            
+            html += '</table>';
+            document.getElementById('scenario1-results').innerHTML = html;
+        }
+
+        // シナリオ2結果表示
+        function displayScenario2Results(results, threshold, includeNonPickupMoji) {
+            let html = `
+                <table>
+                    <tr><th>項目</th><th>10連あたりの値</th></tr>
+                    <tr><td>神名のカケラ</td><td>${results.kakera.toFixed(1)}</td></tr>
+                    <tr><td>ピックアップ神名文字価値（カケラ換算）</td><td>${results.pickupMojiAsKakera.toFixed(1)}</td></tr>`;
+            if (includeNonPickupMoji) {
+                html += `<tr><td>非ピックアップ神名文字価値（カケラ換算）</td><td>${results.nonPickupMojiAsKakera.toFixed(1)}</td></tr>`;
+            }
+            html += `<tr><td>合計</td><td>${results.combined.toFixed(1)}</td></tr>
+                    <tr><td>ピックアップ数</td><td>${results.pickupCount.toFixed(2)}体</td></tr>
+                    <tr><td>平均ガチャ連数</td><td>${results.averagePulls.toFixed(1)}連</td></tr>
+                </table>
+                <p>継続判定閾値: ${threshold}</p>
+                <p>非ピックアップ神名文字の価値: ${includeNonPickupMoji ? '含める' : '含めない'}</p>
+            `;
+            document.getElementById('scenario2-results').innerHTML = html;
+        }
+
+        // シナリオ2デバッグ結果表示
+        function displayScenario2DebugResults(debugResults) {
+            let html = '<div style="font-family: monospace; font-size: 12px;">';
+            
+            for (const result of debugResults) {
+                html += `<div style="margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; background-color: #f9f9f9;">`;
+                html += `<strong>シミュレーション ${result.simulation}</strong><br>`;
+                html += `最終連数: ${result.finalPulls}連, 最終価値: ${result.finalValue.toFixed(1)}, 10連あたり: ${result.perTenValue.toFixed(1)}, ピックアップ数: ${result.pickupCount}体<br><br>`;
+                
+                for (const logEntry of result.log) {
+                    html += `${logEntry}<br>`;
+                }
+                
+                html += '</div>';
+            }
+            
+            html += '</div>';
+            document.getElementById('scenario2-debug').innerHTML = html;
+        }
+
+        // シナリオ3結果表示
+        function displayScenario3Results(results, includeNonPickupMoji) {
+            let html = '<table><tr><th>撤退ライン</th><th>平均ガチャ連数</th><th>神名のカケラ</th><th>ピックアップ神名文字価値</th>';
+            if (includeNonPickupMoji) {
+                html += '<th>非ピックアップ神名文字価値</th>';
+            }
+            html += '<th>合計</th><th>10連あたり</th></tr>';
+            
+            for (const [line, data] of Object.entries(results)) {
+                html += `<tr>
+                    <td>${line}連</td>
+                    <td>${data.averagePulls.toFixed(1)}連</td>
+                    <td>${data.kakera.toFixed(1)}</td>
+                    <td>${data.pickupMojiAsKakera.toFixed(1)}</td>`;
+                if (includeNonPickupMoji) {
+                    html += `<td>${data.nonPickupMojiAsKakera.toFixed(1)}</td>`;
+                }
+                html += `<td>${data.combined.toFixed(1)}</td>
+                    <td>${data.perTen.toFixed(1)}</td>
+                </tr>`;
+            }
+            
+            html += '</table>';
+            document.getElementById('scenario3-results').innerHTML = html;
+        }
+
+        // シナリオ3デバッグ結果表示
+        function displayScenario3DebugResults(debugResults) {
+            let html = '<div style="font-family: monospace; font-size: 12px;">';
+            
+            for (const result of debugResults) {
+                html += `<div style="margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; background-color: #f9f9f9;">`;
+                html += `<strong>シミュレーション ${result.simulation}</strong><br>`;
+                html += `最終連数: ${result.finalPulls}連, 最終価値: ${result.finalValue.toFixed(1)}, ピックアップ数: ${result.pickupCount}体<br><br>`;
+                
+                for (const logEntry of result.log) {
+                    html += `${logEntry}<br>`;
+                }
+                
+                html += '</div>';
+            }
+            
+            html += '</div>';
+            document.getElementById('scenario3-debug').innerHTML = html;
+        }
+
+        // 結果クリア
+        function clearResults() {
+            document.getElementById('results').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

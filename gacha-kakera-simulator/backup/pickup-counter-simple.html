@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ピックアップ獲得回数検算ツール</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="number"] {
+            width: 200px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .loading {
+            display: none;
+            color: #666;
+            font-style: italic;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ピックアップ獲得回数検算ツール</h1>
+        <p>1万連（1000回の10連）でのピックアップ獲得回数をシミュレーション</p>
+        
+        <div class="form-group">
+            <label for="simulations">シミュレーション回数:</label>
+            <input type="number" id="simulations" value="1000" min="100" max="10000">
+        </div>
+        
+        <div class="form-group">
+            <label for="withdrawLine">撤退ライン（連数）:</label>
+            <input type="number" id="withdrawLine" value="150" min="0" max="200" step="10">
+            <small style="color: #666; display: block; margin-top: 5px;">
+                この連数以上でピックアップを獲得した場合、カウンタをリセットしません
+            </small>
+        </div>
+        
+        <button onclick="runSimulation()">シミュレーション実行</button>
+        <button onclick="clearResults()">結果クリア</button>
+        
+        <div class="loading" id="loading">計算中...</div>
+        
+        <div id="results" class="results" style="display: none;">
+            <h2>シミュレーション結果</h2>
+            <div id="summary"></div>
+            <div id="detailed-results"></div>
+        </div>
+    </div>
+
+    <script>
+        // ガチャの確率設定
+        const RATES = {
+            first9: {
+                pickupSSR: 0.007,    // 0.7%
+                nonPickupSSR: 0.023, // 2.3%
+                SR: 0.185,           // 18.5%
+                R: 0.785             // 78.5%
+            },
+            tenth: {
+                pickupSSR: 0.007,    // 0.7%
+                nonPickupSSR: 0.023, // 2.3%
+                SR: 0.97,            // 97%
+                R: 0                 // 0%
+            }
+        };
+
+        // 単発ガチャの実行
+        function singleGacha(isLastPull = false) {
+            const rates = isLastPull ? RATES.tenth : RATES.first9;
+            const rand = Math.random();
+            
+            if (rand < rates.pickupSSR) {
+                return { type: 'pickupSSR' };
+            } else if (rand < rates.pickupSSR + rates.nonPickupSSR) {
+                return { type: 'nonPickupSSR' };
+            } else if (rand < rates.pickupSSR + rates.nonPickupSSR + rates.SR) {
+                return { type: 'SR' };
+            } else {
+                return { type: 'R' };
+            }
+        }
+
+        // 10連ガチャの実行
+        function tenPullGacha() {
+            const results = [];
+            for (let i = 0; i < 9; i++) {
+                results.push(singleGacha(false));
+            }
+            results.push(singleGacha(true)); // 最後の1連
+            return results;
+        }
+
+        // 10連でピックアップが何個出たかカウント
+        function countPickupInTenPull(gachaResults) {
+            return gachaResults.filter(result => result.type === 'pickupSSR').length;
+        }
+
+        // 10連でピックアップが出たかチェック（後方互換用）
+        function hasPickupInTenPull(gachaResults) {
+            return gachaResults.some(result => result.type === 'pickupSSR');
+        }
+
+        // 1万連シミュレーション（1つのシミュレーション）
+        function simulate10000Pulls(withdrawLine) {
+            const totalTenPulls = 1000; // 1万連 = 1000回の10連
+            let pickupCount = 0; // ピックアップ獲得回数
+            let pullsSinceLastPickup = 0; // 最後のピックアップから引いた回数
+            let guaranteeActivations = 0; // 200連保証が発動した回数
+            let withdrawActivations = 0; // 撤退ラインでのピックアップ獲得回数
+            
+            for (let i = 0; i < totalTenPulls; i++) {
+                // 10連実行
+                const tenPull = tenPullGacha();
+                pullsSinceLastPickup += 10;
+                
+                // ピックアップが何個出たかカウント
+                const pickupCountInThisTenPull = countPickupInTenPull(tenPull);
+                
+                if (pickupCountInThisTenPull > 0) {
+                    pickupCount += pickupCountInThisTenPull; // 実際の個数分追加
+                    
+                    // 撤退ライン以上でピックアップを獲得した場合はカウンタをリセットしない
+                    if (pullsSinceLastPickup > withdrawLine) {
+                        withdrawActivations++;
+                        // カウンタはリセットしない（撤退しない）
+                    } else {
+                        pullsSinceLastPickup = 0; // カウンタをリセット（撤退）
+                    }
+                } else if (pullsSinceLastPickup >= 200) {
+                    // 200連保証発動
+                    pickupCount++;
+                    guaranteeActivations++;
+                    pullsSinceLastPickup = 0; // カウンタをリセット
+                }
+            }
+            
+            return {
+                pickupCount: pickupCount,
+                guaranteeActivations: guaranteeActivations,
+                withdrawActivations: withdrawActivations,
+                naturalPickups: pickupCount - guaranteeActivations,
+                pickupsPer1000Pulls: (pickupCount / totalTenPulls) * 100 // 100回の10連あたり
+            };
+        }
+
+        // メインシミュレーション実行
+        async function runSimulation() {
+            const simCount = parseInt(document.getElementById('simulations').value);
+            const withdrawLine = parseInt(document.getElementById('withdrawLine').value);
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            
+            // 少し遅延を入れてUIを更新
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            try {
+                let totalPickupCount = 0;
+                let totalGuaranteeActivations = 0;
+                let totalWithdrawActivations = 0;
+                let totalNaturalPickups = 0;
+                let totalPickupsPer1000 = 0;
+                
+                const detailedResults = [];
+                
+                for (let sim = 0; sim < simCount; sim++) {
+                    const result = simulate10000Pulls(withdrawLine);
+                    
+                    totalPickupCount += result.pickupCount;
+                    totalGuaranteeActivations += result.guaranteeActivations;
+                    totalWithdrawActivations += result.withdrawActivations;
+                    totalNaturalPickups += result.naturalPickups;
+                    totalPickupsPer1000 += result.pickupsPer1000Pulls;
+                    
+                    // 最初の10回の詳細結果を記録
+                    if (sim < 10) {
+                        detailedResults.push({
+                            simulation: sim + 1,
+                            ...result
+                        });
+                    }
+                }
+                
+                // 平均値を計算
+                const avgPickupCount = totalPickupCount / simCount;
+                const avgGuaranteeActivations = totalGuaranteeActivations / simCount;
+                const avgWithdrawActivations = totalWithdrawActivations / simCount;
+                const avgNaturalPickups = totalNaturalPickups / simCount;
+                const avgPickupsPer1000 = totalPickupsPer1000 / simCount;
+                
+                displayResults({
+                    simCount: simCount,
+                    withdrawLine: withdrawLine,
+                    avgPickupCount: avgPickupCount,
+                    avgGuaranteeActivations: avgGuaranteeActivations,
+                    avgWithdrawActivations: avgWithdrawActivations,
+                    avgNaturalPickups: avgNaturalPickups,
+                    avgPickupsPer1000: avgPickupsPer1000,
+                    detailedResults: detailedResults
+                });
+                
+                document.getElementById('results').style.display = 'block';
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // 結果表示
+        function displayResults(results) {
+            // サマリー表示
+            const summaryHtml = `
+                <h3>集計結果</h3>
+                <table>
+                    <tr><th>項目</th><th>平均値</th></tr>
+                    <tr><td>1万連でのピックアップ獲得回数</td><td>${results.avgPickupCount.toFixed(2)}体</td></tr>
+                    <tr><td>うち自然獲得（撤退ライン以下）</td><td>${(results.avgNaturalPickups - results.avgWithdrawActivations).toFixed(2)}体</td></tr>
+                    <tr><td>うち撤退ライン超過での獲得</td><td>${results.avgWithdrawActivations.toFixed(2)}体</td></tr>
+                    <tr><td>うち200連保証発動</td><td>${results.avgGuaranteeActivations.toFixed(2)}回</td></tr>
+                    <tr><td>100回の10連あたりピックアップ数</td><td>${results.avgPickupsPer1000.toFixed(2)}体</td></tr>
+                    <tr><td>10連あたりピックアップ数</td><td>${(results.avgPickupsPer1000 / 100).toFixed(4)}体</td></tr>
+                </table>
+                <p>シミュレーション回数: ${results.simCount}回</p>
+                <p>撤退ライン: ${results.withdrawLine}連</p>
+            `;
+            document.getElementById('summary').innerHTML = summaryHtml;
+            
+            // 詳細結果表示（最初の10回分）
+            let detailedHtml = `
+                <h3>詳細結果（最初の10シミュレーション）</h3>
+                <table>
+                    <tr>
+                        <th>シミュレーション</th>
+                        <th>ピックアップ総数</th>
+                        <th>自然獲得</th>
+                        <th>撤退ライン超過</th>
+                        <th>保証発動</th>
+                        <th>100回の10連あたり</th>
+                    </tr>
+            `;
+            
+            for (const result of results.detailedResults) {
+                const naturalUnderLimit = result.naturalPickups - result.withdrawActivations;
+                detailedHtml += `
+                    <tr>
+                        <td>${result.simulation}</td>
+                        <td>${result.pickupCount}体</td>
+                        <td>${naturalUnderLimit}体</td>
+                        <td>${result.withdrawActivations}体</td>
+                        <td>${result.guaranteeActivations}回</td>
+                        <td>${result.pickupsPer1000Pulls.toFixed(2)}体</td>
+                    </tr>
+                `;
+            }
+            
+            detailedHtml += '</table>';
+            document.getElementById('detailed-results').innerHTML = detailedHtml;
+        }
+
+        // 結果クリア
+        function clearResults() {
+            document.getElementById('results').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
