@@ -30,12 +30,12 @@ console.log('input-processor.js: スクリプト開始');
 const InputProcessorCommon = (() => {
   if (typeof module !== 'undefined' && module.exports) {
     // Node.js環境
-    return require('./tl-common.js');
-  } else if (typeof window !== 'undefined' && window.TLCommon) {
+    return require('./utilities.js');
+  } else if (typeof window !== 'undefined' && window.Utilities) {
     // ブラウザ環境
-    return window.TLCommon;
+    return window.Utilities;
   } else {
-    throw new Error('tl-common.js が読み込まれていません。先に tl-common.js を読み込んでください。');
+    throw new Error('utilities.js が読み込まれていません。先に utilities.js を読み込んでください。');
   }
 })();
 
@@ -225,6 +225,12 @@ function processBeginning(beginning, reference, settings = {}) {
  * 2. 残った文字列から数字（[]で囲まれている場合も含む）を検索してコスト使用量として抽出
  * 3. 処理後の残り文字列は使用しないが、念のためremaining_endingとして保持
  * 
+ * 新しい処理として特殊コマンドの秒数指定等が入っている可能性も扱う
+ * 具体的には
+ * 1) 量を表す数字（将来的には%も指定）
+ * 2) 秒数
+ * も含まれている可能性を加味して処理を行う
+ * 
  * @param {string} ending - ending文字列
  * @returns {Object} { label, cost_used, remaining_ending }
  */
@@ -232,6 +238,8 @@ function processEnding(ending) {
   const result = {
     label: null,
     cost_used: null,
+    value: null,
+    duration: null,
     remaining_ending: ending
   };
 
@@ -264,19 +272,38 @@ function processEnding(ending) {
   
   for (const token of tokens) {
     let numberStr = token;
+    let isSurrounded = false; // 囲み文字があるかどうかのフラグ
     
     // []、⟨⟩、<>のいずれかで囲まれている場合は囲み文字を除去
     const surroundedMatch = token.match(/^[\[⟨<]([^\]⟩>]+)[\]⟩>]$/);
     if (surroundedMatch) {
+      isSurrounded = true;
       numberStr = surroundedMatch[1];
     }
+
+    let isSeconds = false;
+    if (/秒|s|S/.test(numberStr)) {
+      isSeconds = true;
+      numberStr = numberStr.replace(/(.*?)(秒|s|S).*/, '$1');
+    }
     
-    // "-"含む数字と"."とだけから構成されるかチェック
-    if (/^-?[\d.]+$/.test(numberStr)) {
-      const costValue = parseFloat(numberStr);
-      if (!isNaN(costValue)) {
-        result.cost_used = costValue;
-        break;
+    // parseFloat()で数値変換を試行
+    const extractedNumber = parseFloat(numberStr);
+    if (!isNaN(extractedNumber)) {
+      if (isSeconds) {
+        if (result.duration === null) {
+          result.duration = extractedNumber;
+        }
+      } else {
+        if (result.cost_used === null) {
+          result.cost_used = extractedNumber;
+        }
+        if (!isSurrounded) {
+          // 囲み文字がない場合はコストではない可能性もあるのでvalueにも設定
+          if (result.value === null) {
+            result.value = extractedNumber;
+          }
+        }
       }
     }
   }
@@ -393,7 +420,8 @@ function createInputJSON(input_original, settings = {}) {
       event_name: event_name,
       label: endingResult.label,
       cost_used: finalCostUsed,
-      ending: endingResult.remaining_ending,
+      ending: ending, // オリジナルのending文字列を保存
+      ending_processed: endingResult.remaining_ending, // 加工後の文字列も保存
       original_line: rawLine, // デバッグ用
       note: [] // エラーや警告メッセージを格納する配列として初期化
     };
@@ -413,19 +441,11 @@ function createInputJSON(input_original, settings = {}) {
 if (typeof module !== 'undefined' && module.exports) {
   console.log('input-processor.js: Node.js環境でエクスポート');
   module.exports = {
-    extractReference,
-    splitIntoThreeParts,
-    processBeginning,
-    processEnding,
     createInputJSON
   };
 } else if (typeof window !== 'undefined') {
   console.log('input-processor.js: ブラウザ環境でエクスポート');
   window.InputProcessor = {
-    extractReference,
-    splitIntoThreeParts,
-    processBeginning,
-    processEnding,
     createInputJSON
   };
   console.log('input-processor.js: window.InputProcessor =', window.InputProcessor);

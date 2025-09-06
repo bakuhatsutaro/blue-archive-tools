@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Blue Archive – Advanced TL Assistant</title>
   <script src="utilities.js" onload="console.log('utilities.js loaded')" onerror="console.error('utilities.js failed to load')"></script>
-  <script src="tl-common.js" onload="console.log('tl-common.js loaded')" onerror="console.error('tl-common.js failed to load')"></script>
   <script src="buffs.js" onload="console.log('buffs.js loaded')" onerror="console.error('buffs.js failed to load')"></script>
   <script src="input-processor.js" onload="console.log('input-processor.js loaded')" onerror="console.error('input-processor.js failed to load')"></script>
   <script src="tl-editor.js" onload="console.log('tl-editor.js loaded')" onerror="console.error('tl-editor.js failed to load')"></script>
@@ -526,6 +525,16 @@
             <div class="setting-comment">
               +/-を常に〇秒後/秒前と解釈するか、あるいは逆として解釈するか（ゲーム内表示の場合のみ）を設定します。
             </div>
+
+            <div class="controls">
+              <span>特殊コマンドを受け付ける：</span>
+              <button class="btn" data-special="yes">はい</button>
+              <button class="btn" data-special="no">いいえ</button>
+              <span id="currentSpecial" class="muted"></span>
+            </div>
+            <div class="setting-comment">
+              「コスト回復力」と書いてある場合その行をコスト回復力変更イベントとみなします。
+            </div>
           </div>
         </div>
       </div>
@@ -753,7 +762,7 @@
     let buffData = window.BUFF_DATA || null;  // バフ効果データの参照
     
     // アプリケーション設定値（グローバル設定オブジェクト）
-    let settings = {
+    const settings = {
       battle_time: 180,                     // 戦闘時間（秒）
       ss_enabled: true,                     // SS有効フラグ
       max_cost: 10,                        // 最大コスト設定
@@ -762,7 +771,8 @@
       modifier_always_forward: 'yes',       // +/-の解釈方向
       seia_koyuu2: 'yes',                  // セイア固有2の有無（デフォルト：あり）
       kanoe_ss: '0',                       // カノエのレベル（デフォルト：なし）
-      cherino_ss: '0'                      // チェリノのレベル（デフォルト：なし）
+      cherino_ss: '0',                     // チェリノのレベル（デフォルト：なし）
+      special_command_accepted: 'yes'      // 特殊コマンドを受け付ける（デフォルト：はい）
     };
 
     // タイムラインに関連する設定項目のキー一覧
@@ -776,7 +786,8 @@
       'cherino_ss',
       'number_interpretation',
       'time_display_format',
-      'modifier_always_forward'
+      'modifier_always_forward',
+      'special_command_accepted'
     ];
 
     // =============================================================================
@@ -1148,6 +1159,17 @@
           triggerAutoUpdate();
         });
       });
+
+      // 特殊コマンドボタンの設定
+      const specialButtons = Array.from(document.querySelectorAll('.btn[data-special]'));
+      specialButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          settings.special_command_accepted = btn.dataset.special;
+          updateActiveButtons();
+          saveSettings(); // 設定を自動保存
+          triggerAutoUpdate();
+        });
+      });
     }
 
     /**
@@ -1236,6 +1258,13 @@
       };
       // AI向け指示：これは残す
       document.getElementById('currentCherino').textContent = `(現在: ${cherinoLabels[settings.cherino_ss] || 'なし'})`;
+
+      // 特殊コマンドボタンのアクティブ状態更新
+      const specialButtons = Array.from(document.querySelectorAll('.btn[data-special]'));
+      specialButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.special === settings.special_command_accepted);
+      });
+      document.getElementById('currentSpecial').textContent = `(現在: ${settings.special_command_accepted === 'yes' ? 'はい' : 'いいえ'})`;
     }
 
     // =============================================================================
@@ -1287,7 +1316,6 @@
      * 
      * 以下のライブラリとその主要関数の存在を確認:
      * - utilities.js: parseTimeToSeconds等のユーティリティ関数
-     * - tl-common.js: TLCommon名前空間
      * - input-processor.js: createInputJSON関数  
      * - tl-editor.js: TimelineProcessorクラス
      * - timeline-formatter.js: generateTimelineHTML関数
@@ -1302,14 +1330,6 @@
         details.push('window.Utilities が undefined');
       } else {
         details.push('✓ utilities.js OK');
-      }
-      
-      // tl-common.jsの確認
-      if (typeof window.TLCommon === 'undefined') {
-        missing.push('tl-common.js');
-        details.push('window.TLCommon が undefined');
-      } else {
-        details.push('✓ tl-common.js OK');
       }
       
       // input-processor.jsの確認

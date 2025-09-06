@@ -130,17 +130,17 @@ console.log('tl-editor.js: スクリプト開始');
 const TLEditorCommon = (() => {
   if (typeof module !== 'undefined' && module.exports) {
     // Node.js環境
-    return require('./tl-common.js');
-  } else if (typeof window !== 'undefined' && window.TLCommon) {
+    return require('./utilities.js');
+  } else if (typeof window !== 'undefined' && window.Utilities) {
     // ブラウザ環境
-    return window.TLCommon;
+    return window.Utilities;
   } else {
-    throw new Error('tl-common.js が読み込まれていません。先に tl-common.js を読み込んでください。');
+    throw new Error('utilities.js が読み込まれていません。先に utilities.js を読み込んでください。');
   }
 })();
 
 // 共通定数の参照
-const COST_POINT_UNIT = TLEditorCommon.COST_CONSTANTS.COST_POINT_UNIT;
+const COST_POINT_UNIT = 30 * 10000;  // コスト1.0 = 300,000ポイント
 
 // ==============================
 // 2. 定数・設定値
@@ -155,8 +155,13 @@ const COST_SETTINGS = {
   DEFAULT_BATTLE_TIME: 180,     // デフォルト戦闘時間（秒）
   BASE_RECOVERY_PER_STUDENT: 700, // 生徒1人あたりの基本コスト回復力（A.2.aの仕様）
   COST_RECOVERY_SS_MULTIPLIER: 1.2029, // コスト回復力上昇SS倍率（1 + 0.2029）
-  // COST_POINT_UNIT は tl-common.jsのCOST_CONSTANTSから取得
 };
+
+/**
+ * 特殊コマンド検出用の正規表現パターン
+ * 将来的に拡張可能にするため定数として定義
+ */
+const COST_RECOVERY_DETECTION_PATTERN = /コスト回復力.*(?:増|上昇)/;
 // ここのパラメータは一部ユーザーからの入力により変更されるが、
 // その処理はconfigがsettingsの情報を読み込む部分で行われる
 
@@ -892,6 +897,38 @@ class TimelineProcessor {
   }
 
   /**
+   * 特殊コマンドの処理
+   * input_JSON内のイベントを受け取り、特殊コマンドかどうかを判定・処理する
+   * 
+   * @param {Object} original_event - input_JSON内のイベント（参照として受け取り）
+   */
+  processSpecialCommand(original_event) {
+    // 0) is_special_commandキーを追加
+    original_event.is_special_command = false;
+    
+    // 1) 与えられた条件を満たしているか確認
+    // 現在は設定で特殊コマンドが有効になっているかのみチェック
+    if (this.settings.special_command_accepted !== 'yes') {
+      // 特殊コマンドが無効の場合
+      return;
+    }
+    
+    // イベント名が存在しない場合
+    if (!original_event.event_name) {
+      return;
+    }
+    
+    // 2) イベント名に「コスト回復力」と（「増」あるいは「上昇」）が含まれているかチェック
+    if (COST_RECOVERY_DETECTION_PATTERN.test(original_event.event_name)) {
+      // 特殊イベント処理フェーズに入る
+      original_event.is_special_command = true;
+      return;
+    }
+    
+    // 条件を満たさない場合はfalseのまま
+  }
+
+  /**
    * 行のタイミングを解決する
    * @param {Object} row - 処理する行データ
    * @param {number} index - 行のインデックス（エラーメッセージ用）
@@ -1326,6 +1363,14 @@ class TimelineProcessor {
       // ========================================
       for (let i = 0; i < this.input_json.timeline.length; i++) {
         const row = this.input_json.timeline[i];
+        
+        // 特殊コマンドの処理を最初に実行
+        this.processSpecialCommand(row);
+        
+        // 特殊コマンドの場合は通常の処理をスキップ
+        if (row.is_special_command) {
+          continue;
+        }
         
         // resolveRowTimingメソッドがaddEventToTimelineを呼び出してイベントを追加済み
         this.resolveRowTiming(row, i);
