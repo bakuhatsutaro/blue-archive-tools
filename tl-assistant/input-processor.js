@@ -242,6 +242,7 @@ function processEnding(ending) {
     cost_used: null,
     value: null,
     duration: null,
+    target: null,
     remaining_ending: ending
   };
 
@@ -272,7 +273,25 @@ function processEnding(ending) {
   // []、⟨⟩、<>に囲まれた数字の場合は囲み文字を無視して数字部分を抽出
   const tokens = processedEnding.split(/\s+/).filter(token => token.length > 0);
   
-  for (const token of tokens) {
+  // 特殊コマンド用：数値を順次検出するためのフラグ
+  let valueSet = false;
+  let durationSet = false;
+  
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    
+    // target抽出：数字や-,.,カッコ系の記号以外の文字も含むもので一番最初のものをtargetとする
+    if (result.target === null) {
+      // 数字、-、.、カッコ系の記号（[], ⟨⟩, <>, ()）のみで構成されているかチェック
+      const isOnlyNumbersAndSymbols = /^[\d\-\.\[\]⟨⟩<>()秒sSs]*$/.test(token);
+      
+      // 数字や記号以外の文字も含む場合、それをtargetとして保存
+      if (!isOnlyNumbersAndSymbols) {
+        result.target = token;
+        continue; // targetが見つかったら数値処理はスキップ
+      }
+    }
+    
     let numberStr = token;
     let isSurrounded = false; // 囲み文字があるかどうかのフラグ
     
@@ -283,6 +302,7 @@ function processEnding(ending) {
       numberStr = surroundedMatch[1];
     }
 
+    // 秒数パターンの検出
     let isSeconds = false;
     if (/秒|s|S/.test(numberStr)) {
       isSeconds = true;
@@ -291,27 +311,37 @@ function processEnding(ending) {
     
     // parseFloat()で数値変換を試行
     const extractedNumber = parseFloat(numberStr);
+    
     if (!isNaN(extractedNumber)) {
       if (isSeconds) {
         if (result.duration === null) {
           result.duration = extractedNumber;
+          durationSet = true;
         }
-      } else {
+      } else if (isSurrounded) {
+        // []で囲まれている場合は常にcost_used
         if (result.cost_used === null) {
           result.cost_used = extractedNumber;
         }
-        if (!isSurrounded) {
-          // 囲み文字がない場合はコストではない可能性もあるのでvalueにも設定
-          if (result.value === null) {
-            result.value = extractedNumber;
-          }
+      } else {
+        // 囲み文字がない数値の場合、cost_usedとvalue両方に設定を試みる
+        if (result.cost_used === null) {
+          result.cost_used = extractedNumber;
         }
+        if (!valueSet && result.value === null) {
+          // 最初の数値をvalueに設定
+          result.value = extractedNumber;
+          valueSet = true;
+        } // 2つ目以降の数値は秒数指定出ない限りは無視
       }
     }
   }
 
   // 残りのending部分を更新
   result.remaining_ending = processedEnding.trim();
+
+  // デバッグログ
+  console.log('extracted target:', result.target);
 
   return result;
 }
@@ -360,9 +390,6 @@ function processUserInputWithFrames(input_original, direction = 'forward', total
  */
 function createInputJSON(input_original, settings = {}) {
   console.log('createInputJSON called with settings:', settings);
-  console.log('settings.time_display_format:', settings.time_display_format);
-  console.log('settings.number_interpretation:', settings.number_interpretation);
-  console.log('settings.battle_time:', settings.battle_time);
   
   if (typeof input_original !== 'string') {
     return [];
@@ -427,6 +454,9 @@ function createInputJSON(input_original, settings = {}) {
       event_name: event_name,
       label: endingResult.label,
       cost_used: finalCostUsed,
+      value: endingResult.value,        // 特殊コマンド用の値
+      duration: endingResult.duration,  // 特殊コマンド用の秒数
+      target: endingResult.target,      // 特殊コマンド用のターゲット
       ending: ending, // オリジナルのending文字列を保存
       ending_processed: endingResult.remaining_ending, // 加工後の文字列も保存
       original_line: rawLine, // デバッグ用

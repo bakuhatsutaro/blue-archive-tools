@@ -450,13 +450,26 @@ function findMostRecentAdditionalEvent(event_type, current_frame, additional_eve
 function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled = false, active_students = 6) {
   // 有効なバフを検索
   const active_buffs = [];
+  const global_buffs = []; // buff_target が "NA" のバフ（全体への追加回復）
+  const all_student_buffs = []; // buff_target が "全員"/"全体"/"all"/"ALL" のバフ
   
   for (const event of additional_events) {
     // activeフラグがtrueであり、開始フレーム <= current_frame < 終了フレームを満たすバフを探す
     if (event.active && 
         event.start_frame <= current_frame && 
         event.end_frame > current_frame) {
-      active_buffs.push(event);
+      
+      // buff_targetによってバフを分類
+      if (event.buff_target === "NA") {
+        global_buffs.push(event);
+      } else if (event.buff_target && 
+                 (event.buff_target.toLowerCase() === "all" || 
+                  event.buff_target === "全員" || 
+                  event.buff_target === "全体")) {
+        all_student_buffs.push(event);
+      } else {
+        active_buffs.push(event);
+      }
     }
   }
   
@@ -470,24 +483,41 @@ function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled
   
   let total_cost_recovery = 0;
   
-  // バフがかかっている生徒の分を計算
+  // 全生徒に適用されるバフの総量を計算
+  let all_student_buff_total = 0;
+  for (const buff of all_student_buffs) {
+    all_student_buff_total += buff.buff_amount;
+  }
+  
+  // バフがかかっている生徒の分を計算（個別バフ + 全生徒バフ）
   for (const buff of active_buffs) {
-    const buffed_base = base_recovery + buff.buff_amount;
+    const buffed_base = base_recovery + buff.buff_amount + all_student_buff_total;
     const buffed_actual = ss_enabled ? 
       Math.round(buffed_base * (1 + cost_recovery_ss_multiplier)) : 
       buffed_base;
     total_cost_recovery += buffed_actual;
   }
   
-  // バフがかかっていない生徒の分を計算
+  // バフがかかっていない生徒の分を計算（基本 + 全生徒バフ）
   const unbuffed_students = active_students - active_buffs.length;
   if (unbuffed_students > 0) {
-    const unbuffed_base = base_recovery;
+    const unbuffed_base = base_recovery + all_student_buff_total;
     const unbuffed_actual = ss_enabled ? 
       Math.round(unbuffed_base * (1 + cost_recovery_ss_multiplier)) : 
       unbuffed_base;
     total_cost_recovery += unbuffed_students * unbuffed_actual;
   }
+  
+  // グローバルバフ（NA）の追加回復量を計算
+  let global_buff_total = 0;
+  for (const buff of global_buffs) {
+    const global_actual = ss_enabled ? 
+      Math.round(buff.buff_amount * (1 + cost_recovery_ss_multiplier)) : 
+      buff.buff_amount;
+    global_buff_total += global_actual;
+  }
+  
+  total_cost_recovery += global_buff_total;
   
   return total_cost_recovery;
 }
@@ -729,6 +759,12 @@ function InitializeLabelMap(input_json) {
 class TimelineProcessor {
   /**
    * コンストラクタ - Step 1の処理を実行
+   * 
+   * 【重要】additional_eventsの取り扱いについて：
+   * - バフイベントの保存先: this.timeline_json.additional_events
+   * - バフイベントの読み取り先: this.timeline_json.additional_events
+   * - this.additional_events は使用禁止（存在しない間違った場所）
+   * 
    * @param {Object} input_json - input_processor.jsで生成されたデータ
    * @param {Object} settings - 設定オプション
    * @param {Object} buff_data - buffs.jsonから読み込まれたバフデータ
@@ -906,26 +942,41 @@ class TimelineProcessor {
     // 0) is_special_commandキーを追加
     original_event.is_special_command = false;
     
+    console.log(`=== processSpecialCommand Debug ===`);
+    console.log(`event_name: "${original_event.event_name}"`);
+    console.log(`settings.special_command_accepted: "${this.settings.special_command_accepted}"`);
+    
     // 1) 与えられた条件を満たしているか確認
     // 現在は設定で特殊コマンドが有効になっているかのみチェック
     if (this.settings.special_command_accepted !== 'yes') {
       // 特殊コマンドが無効の場合
+      console.log('特殊コマンドが無効です');
       return;
     }
     
     // イベント名が存在しない場合
     if (!original_event.event_name) {
+      console.log('イベント名が存在しません');
       return;
     }
     
     // 2) イベント名に「コスト回復力」と（「増」あるいは「上昇」）が含まれているかチェック
+    console.log(`Pattern test: ${COST_RECOVERY_DETECTION_PATTERN.test(original_event.event_name)}`);
     if (COST_RECOVERY_DETECTION_PATTERN.test(original_event.event_name)) {
+      console.log('特殊コマンドが検出されました！');
       // 特殊イベント処理フェーズに入る
       original_event.is_special_command = true;
       let duration = original_event.duration;
 
+      console.log('original_event:', JSON.stringify(original_event, null, 2));
+      console.log('duration:', duration, 'type:', typeof duration);
+      console.log('value:', original_event.value);
+      console.log('cost_used:', original_event.cost_used);
+      console.log('cost_timing:', original_event.cost_timing);
+
       // durationが有効な場合のみ処理を実行する
       if (typeof duration === 'number' && duration > 0) {
+        console.log('Duration validation passed, creating buff event...');
         // buff.jsからgeneralテンプレートを取得
         const general = window.BUFF_DATA.cost_recovery_buffs.general;
         
@@ -937,11 +988,30 @@ class TimelineProcessor {
         buff_skeleton.buff_value_type = "value";
         buff_skeleton.duration_frames = InputProcessorCommon.secondsToFrames(duration);
         
+        // targetが存在する場合はbuff_skeletonに追加
+        console.log('original_event.target:', original_event.target);
+        if (original_event.target) {
+          buff_skeleton.buff_target = original_event.target;
+          console.log('buff_skeleton.buff_target set to:', buff_skeleton.buff_target);
+        } else {
+          console.log('original_event.target is null/undefined, keeping default NA');
+        }
+        
+        // フレーム数を計算（timeから変換）
+        const start_frame = InputProcessorCommon.secondsToFrames(original_event.time);
+        
         // バフイベントを作成してadditional_eventsに追加
-        const buff_event = this.createBuffEvent(buff_skeleton, original_event.start_frame, this.settings);
-        this.additional_events.push(buff_event);
+        // 重要: セイア・水着ホシノと同様に this.timeline_json.additional_events に保存すること
+        // this.additional_events は存在しない（間違った場所）
+        const buff_event = this.createBuffEvent(buff_skeleton, start_frame, this.settings);
+        this.timeline_json.additional_events.push(buff_event);
+        console.log('バフイベントをadditional_eventsに追加しました:', buff_event);
+      } else {
+        console.log('Duration validation failed. duration:', duration, 'type:', typeof duration);
       }
       return;
+    } else {
+      console.log('パターンにマッチしませんでした');
     }
     
     // 条件を満たさない場合はfalseのまま
@@ -975,6 +1045,7 @@ class TimelineProcessor {
         frame_estimated = this.estimateFrameFromRow(row, this.state, this.label_map, this.timeline_json.additional_events, this.settings);
 
         // additional_eventsから次に実行すべき特殊イベントを検索
+        // 重要: this.timeline_json.additional_events から読み取り（バフ保存場所と一致）
         const { frame: most_recent_additional_event_frame, event: most_recent_additional_event, original_event: original_event } = 
           this.findMostRecentAdditionalEvent(this.timeline_json.additional_events, this.state.current_frame);
 
@@ -1367,6 +1438,8 @@ class TimelineProcessor {
       }
       
       // additional_eventsに追加
+      // 注意: バフイベントは必ずthis.timeline_json.additional_eventsに保存すること
+      // 理由: コスト計算時にここから読み取られるため（969行目参照）
       this.timeline_json.additional_events.push(buff_event);
     }
   }
