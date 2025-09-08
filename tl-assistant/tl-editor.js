@@ -972,6 +972,12 @@ class TimelineProcessor {
       // 特殊イベント処理フェーズに入る
       original_event.is_special_command = true;
       let duration = original_event.duration;
+      
+      // durationがnullの場合は戦闘時間を使用
+      if (duration === null || duration === undefined) {
+        duration = this.settings.battle_time;
+        console.log(`duration was null/undefined, using battle_time: ${duration}秒`);
+      }
 
       console.log('original_event:', JSON.stringify(original_event, null, 2));
       console.log('duration:', duration, 'type:', typeof duration);
@@ -979,9 +985,9 @@ class TimelineProcessor {
       console.log('cost_used:', original_event.cost_used);
       console.log('cost_timing:', original_event.cost_timing);
 
-      // durationが有効な場合のみ処理を実行する
-      if (typeof duration === 'number' && duration > 0) {
-        console.log('Duration validation passed, creating buff event...');
+      // valueが有効な場合のみ処理を実行する
+      if (original_event.value !== null && original_event.value !== undefined && original_event.value !== 0) {
+        console.log('Value validation passed, creating buff event...');
         // buff.jsからgeneralテンプレートを取得
         const general = window.BUFF_DATA.cost_recovery_buffs.general;
         
@@ -1053,7 +1059,7 @@ class TimelineProcessor {
         this.timeline_json.additional_events.push(buff_event);
         console.log(`バフイベント(${commandType})をadditional_eventsに追加しました:`, buff_event);
       } else {
-        console.log('Duration validation failed. duration:', duration, 'type:', typeof duration);
+        console.log('Value validation failed. value:', original_event.value, 'type:', typeof original_event.value);
       }
       return;
     } else {
