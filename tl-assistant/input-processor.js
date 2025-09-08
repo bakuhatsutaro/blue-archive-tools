@@ -137,9 +137,11 @@ function processBeginning(beginning, reference, settings = {}) {
   }
 
   // デフォルト設定
-  const numberInterpretation = settings.number_interpretation || 'time';
-  const timeInterpretation = settings.time_display_format || 'forward'; // 'forward' または 'backward'
-  const battleTime = settings.battle_time || 180;
+  console.log('processBeginning: 受け取ったsettings =', settings);
+  const numberInterpretation = settings.number_interpretation || 'cost';
+  const timeInterpretation = settings.time_display_format || 'backward'; // 'forward' または 'backward'
+  const battleTime = settings.battle_time || 240;
+  console.log('processBeginning: 解釈設定 =', { numberInterpretation, timeInterpretation, battleTime });
 
   // referenceが存在しない場合（空文字列またはnull）
   if (!reference) {
@@ -357,6 +359,11 @@ function processUserInputWithFrames(input_original, direction = 'forward', total
  * @returns {Array} input_json - 配列
  */
 function createInputJSON(input_original, settings = {}) {
+  console.log('createInputJSON called with settings:', settings);
+  console.log('settings.time_display_format:', settings.time_display_format);
+  console.log('settings.number_interpretation:', settings.number_interpretation);
+  console.log('settings.battle_time:', settings.battle_time);
+  
   if (typeof input_original !== 'string') {
     return [];
   }

@@ -63,6 +63,16 @@ window.BUFF_DATA = {
       "duration_frames": 1000000,
       "offset_frames": 0,
       "detection_patterns": []
+    },
+    "general": {
+      "event_type": "cost_recovery_buff",
+      "buff_name": "コスト回復力増加",
+      "buff_target": "NA",
+      "buff_amount": null,
+      "buff_value_type": null,
+      "duration_frames": null,
+      "offset_frames": 0,
+      "detection_patterns": []
     }
   }
 };

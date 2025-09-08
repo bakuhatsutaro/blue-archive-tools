@@ -17,10 +17,12 @@ const FPS = 30;  // 30 FPS
  * @param {string} timeStr - 時間文字列（例：2:34.543）
  * @returns {number|null} 秒数、変換できない場合はnull
  */
-function parseTimeToSeconds(timeStr) {
+function parseTimeToSeconds(timeStr, settings = {}, isModifierTime = false) {
   if (!timeStr || typeof timeStr !== 'string') {
     return null;
   }
+
+  let seconds = null;
 
   // コロンが含まれる場合（分:秒.ミリ秒形式）
   if (timeStr.includes(':')) {
@@ -30,17 +32,36 @@ function parseTimeToSeconds(timeStr) {
     }
 
     const minutes = parseFloat(parts[0]);
-    const seconds = parseFloat(parts[1]);
+    const secondsPart = parseFloat(parts[1]);
 
-    if (isNaN(minutes) || isNaN(seconds)) {
+    if (isNaN(minutes) || isNaN(secondsPart)) {
       return null;
     }
 
-    return minutes * 60 + seconds;
+    seconds = minutes * 60 + secondsPart;
   } else {
     // 秒のみの場合
-    const seconds = parseFloat(timeStr);
-    return isNaN(seconds) ? null : seconds;
+    seconds = parseFloat(timeStr);
+    if (isNaN(seconds)) {
+      return null;
+    }
+  }
+
+  // 修飾子の時間の場合は変換しない（相対時間のため）
+  if (isModifierTime) {
+    return seconds;
+  }
+
+  // settings に基づく時間変換
+  const timeDisplayFormat = settings.time_display_format || 'backward';
+  const battleTime = settings.battle_time || 240;
+
+  if (timeDisplayFormat === 'backward') {
+    // ゲーム内表示（残り時間）→ 経過時間に変換
+    return battleTime - seconds;
+  } else {
+    // 経過時間の場合はそのまま
+    return seconds;
   }
 }
 

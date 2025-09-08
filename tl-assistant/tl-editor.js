@@ -922,6 +922,25 @@ class TimelineProcessor {
     if (COST_RECOVERY_DETECTION_PATTERN.test(original_event.event_name)) {
       // 特殊イベント処理フェーズに入る
       original_event.is_special_command = true;
+      let duration = original_event.duration;
+
+      // durationが有効な場合のみ処理を実行する
+      if (typeof duration === 'number' && duration > 0) {
+        // buff.jsからgeneralテンプレートを取得
+        const general = window.BUFF_DATA.cost_recovery_buffs.general;
+        
+        // generalをdeep copyしてbuff_skeletonを作成
+        const buff_skeleton = structuredClone(general);
+        
+        // 特殊コマンド用の値を設定
+        buff_skeleton.buff_amount = original_event.value;
+        buff_skeleton.buff_value_type = "value";
+        buff_skeleton.duration_frames = InputProcessorCommon.secondsToFrames(duration);
+        
+        // バフイベントを作成してadditional_eventsに追加
+        const buff_event = this.createBuffEvent(buff_skeleton, original_event.start_frame, this.settings);
+        this.additional_events.push(buff_event);
+      }
       return;
     }
     
