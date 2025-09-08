@@ -161,7 +161,8 @@ const COST_SETTINGS = {
  * 特殊コマンド検出用の正規表現パターン
  * 将来的に拡張可能にするため定数として定義
  */
-const COST_RECOVERY_DETECTION_PATTERN = /コスト回復力.*(?:増|上昇)/;
+const COST_RECOVERY_INCREASE_PATTERN = /コスト回復力.*(?:増|上昇)/;
+const COST_RECOVERY_DECREASE_PATTERN = /コスト回復力.*(?:減|減少|低下)/;
 // ここのパラメータは一部ユーザーからの入力により変更されるが、
 // その処理はconfigがsettingsの情報を読み込む部分で行われる
 
@@ -960,10 +961,14 @@ class TimelineProcessor {
       return;
     }
     
-    // 2) イベント名に「コスト回復力」と（「増」あるいは「上昇」）が含まれているかチェック
-    console.log(`Pattern test: ${COST_RECOVERY_DETECTION_PATTERN.test(original_event.event_name)}`);
-    if (COST_RECOVERY_DETECTION_PATTERN.test(original_event.event_name)) {
-      console.log('特殊コマンドが検出されました！');
+    // 2) イベント名に「コスト回復力増加」または「コスト回復力減少」が含まれているかチェック
+    const isIncreasePattern = COST_RECOVERY_INCREASE_PATTERN.test(original_event.event_name);
+    const isDecreasePattern = COST_RECOVERY_DECREASE_PATTERN.test(original_event.event_name);
+    console.log(`Increase pattern test: ${isIncreasePattern}, Decrease pattern test: ${isDecreasePattern}`);
+    
+    if (isIncreasePattern || isDecreasePattern) {
+      const commandType = isIncreasePattern ? 'increase' : 'decrease';
+      console.log(`特殊コマンドが検出されました！ タイプ: ${commandType}`);
       // 特殊イベント処理フェーズに入る
       original_event.is_special_command = true;
       let duration = original_event.duration;
@@ -984,17 +989,58 @@ class TimelineProcessor {
         const buff_skeleton = structuredClone(general);
         
         // 特殊コマンド用の値を設定
-        buff_skeleton.buff_amount = original_event.value;
+        // 減少の場合は負の値にする
+        const buffAmount = isDecreasePattern ? -original_event.value : original_event.value;
+        buff_skeleton.buff_amount = buffAmount;
         buff_skeleton.buff_value_type = "value";
         buff_skeleton.duration_frames = InputProcessorCommon.secondsToFrames(duration);
         
-        // targetが存在する場合はbuff_skeletonに追加
+        // targetが存在する場合はbuff_skeletonに追加（バフ名処理の前に実行）
         console.log('original_event.target:', original_event.target);
         if (original_event.target) {
           buff_skeleton.buff_target = original_event.target;
           console.log('buff_skeleton.buff_target set to:', buff_skeleton.buff_target);
         } else {
           console.log('original_event.target is null/undefined, keeping default NA');
+        }
+        
+        // バフ名の処理：数字挿入 → 増加/減少置換 → ターゲット追加
+        if (buff_skeleton.buff_name) {
+          console.log('=== バフ名統合処理デバッグ ===');
+          console.log('元のbuff_name:', buff_skeleton.buff_name);
+          console.log('buffAmount:', buffAmount);
+          console.log('isDecreasePattern:', isDecreasePattern);
+          console.log('buff_skeleton.buff_target:', buff_skeleton.buff_target);
+          
+          // 1. 「増加」の前に数字を挿入
+          let newBuffName = buff_skeleton.buff_name.replace(/増加/, `${Math.abs(buffAmount)}増加`);
+          console.log('数字挿入後:', newBuffName);
+          
+          // 2. 減少の場合は「増加」を「減少」に置換
+          if (isDecreasePattern) {
+            newBuffName = newBuffName.replace(/増加/g, '減少');
+            console.log('減少置換後:', newBuffName);
+          }
+          
+          // 3. ターゲットが"NA"でない場合は(ターゲット名)を追加
+          console.log('ターゲット条件チェック:', {
+            'buff_target exists': !!buff_skeleton.buff_target,
+            'buff_target value': buff_skeleton.buff_target,
+            'is not NA': buff_skeleton.buff_target !== "NA"
+          });
+          
+          if (buff_skeleton.buff_target && buff_skeleton.buff_target !== "NA") {
+            newBuffName += `(${buff_skeleton.buff_target})`;
+            console.log('ターゲット追加後:', newBuffName);
+          } else {
+            console.log('ターゲット追加スキップ');
+          }
+          
+          buff_skeleton.buff_name = newBuffName;
+          console.log('最終的なbuff_name:', buff_skeleton.buff_name);
+        } else {
+          console.log('=== バフ名処理スキップ ===');
+          console.log('buff_skeleton.buff_name:', buff_skeleton.buff_name);
         }
         
         // フレーム数を計算（timeから変換）
@@ -1005,7 +1051,7 @@ class TimelineProcessor {
         // this.additional_events は存在しない（間違った場所）
         const buff_event = this.createBuffEvent(buff_skeleton, start_frame, this.settings);
         this.timeline_json.additional_events.push(buff_event);
-        console.log('バフイベントをadditional_eventsに追加しました:', buff_event);
+        console.log(`バフイベント(${commandType})をadditional_eventsに追加しました:`, buff_event);
       } else {
         console.log('Duration validation failed. duration:', duration, 'type:', typeof duration);
       }

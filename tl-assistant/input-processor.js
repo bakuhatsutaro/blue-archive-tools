@@ -227,10 +227,11 @@ function processBeginning(beginning, reference, settings = {}) {
  * 2. 残った文字列から数字（[]で囲まれている場合も含む）を検索してコスト使用量として抽出
  * 3. 処理後の残り文字列は使用しないが、念のためremaining_endingとして保持
  * 
- * 新しい処理として特殊コマンドの秒数指定等が入っている可能性も扱う
+ * 新しい処理として特殊コマンド（コスト回復力増加/減少等）の秒数指定等が入っている可能性も扱う
  * 具体的には
  * 1) 量を表す数字（将来的には%も指定）
  * 2) 秒数
+ * 3) ターゲット（全体、個別キャラ名等）
  * も含まれている可能性を加味して処理を行う
  * 
  * @param {string} ending - ending文字列
@@ -243,6 +244,7 @@ function processEnding(ending) {
     value: null,
     duration: null,
     target: null,
+    command_type: null,  // 特殊コマンドの種類識別用（increase/decrease等）
     remaining_ending: ending
   };
 
@@ -430,6 +432,13 @@ function createInputJSON(input_original, settings = {}) {
     // Step 2.2：ending部分の処理
     const endingResult = processEnding(ending);
 
+    // 特殊コマンドの種類を判定
+    if (/コスト回復力.*(?:増|上昇)/.test(event_name)) {
+      endingResult.command_type = 'cost_recovery_increase';
+    } else if (/コスト回復力.*(?:減|減少|低下|下降)/.test(event_name)) {
+      endingResult.command_type = 'cost_recovery_decrease';
+    }
+
     // cost_timingとcost_usedの調整
     let finalCostTiming = beginningResult.cost_timing;
     let finalCostUsed = endingResult.cost_used;
@@ -457,6 +466,7 @@ function createInputJSON(input_original, settings = {}) {
       value: endingResult.value,        // 特殊コマンド用の値
       duration: endingResult.duration,  // 特殊コマンド用の秒数
       target: endingResult.target,      // 特殊コマンド用のターゲット
+      command_type: endingResult.command_type, // 特殊コマンドの種類
       ending: ending, // オリジナルのending文字列を保存
       ending_processed: endingResult.remaining_ending, // 加工後の文字列も保存
       original_line: rawLine, // デバッグ用
