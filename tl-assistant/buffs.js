@@ -10,8 +10,8 @@ window.BUFF_DATA = {
       "buff_name": "水着ホシノEX",
       "buff_target": "水着ホシノ",
       "buff_amount": 684,
-      "duration_frames": 1500,
-      "offset_frames": 21,
+      "duration_frames": 1499,
+      "offset_frames": 24,
       "detection_patterns": [
         {
           "type": "regex",

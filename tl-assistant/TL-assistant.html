@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Blue Archive – Advanced TL Assistant</title>
+  <title>Blue Archive – TL Assistant</title>
   <script src="utilities.js" onload="console.log('utilities.js loaded')" onerror="console.error('utilities.js failed to load')"></script>
   <script src="buffs.js" onload="console.log('buffs.js loaded')" onerror="console.error('buffs.js failed to load')"></script>
   <script src="input-processor.js?v=5&timestamp=1736702000000" onload="console.log('input-processor.js loaded')" onerror="console.error('input-processor.js failed to load')"></script>
@@ -576,6 +576,9 @@
             <li>以下の名前を含んでいると自動的にコスト回復力上昇バフが追加されます：</li>
             <ul>
               <li><strong>水着ホシノ</strong>:「水」と（「ホシノ」あるいは「おじ」）を含んでいる場合</li>
+              <ul>
+                <li>水着ホシノのコスト回復着弾タイムは手動の場合0.833秒、AUTOの場合0.800秒です。本ツールの設計思想としてすべて手動のタイムに合わせます。AUTO指定の場合は0.033秒前の時間を指定してください。（いずれAUTO機能も実装予定）</li>
+              </ul>
               <li><strong>セイア</strong>: 「セイア」を含むが「水」を含まない場合</li>
             </ul>
           </ul>
