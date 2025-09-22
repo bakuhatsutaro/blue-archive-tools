@@ -873,7 +873,9 @@ class TimelineProcessor {
           // Priority 3: コスト指定からの推定
           frame_estimated = this.calculateFramesFromCostTiming(current_row.cost_timing, current_row);
         } else {
-          throw new Error('時間、参照、またはコスト指定のいずれかが必要です');
+          // 時間・参照・コスト指定がすべてない場合は現在フレームを使用
+          // （AUTO撃ちなどでタイミング指定なしの場合）
+          frame_estimated = this.state.current_frame;
         }
         // あくまでもestimateなので、元のオブジェクトに不確かなestimateの値を入れるのは不適切
         // current_row.time = TLEditorCommon.framesToSeconds(frame_estimated);
@@ -1050,7 +1052,9 @@ class TimelineProcessor {
         }
         
         // フレーム数を計算（timeから変換）
-        const start_frame = InputProcessorCommon.secondsToFrames(original_event.time);
+        let start_frame = InputProcessorCommon.secondsToFrames(original_event.time);
+        // AUTO撃ちの場合1フレーム分ロスが少ない
+        start_frame -= original_event.is_auto ? 1 : 0;
         
         // バフイベントを作成してadditional_eventsに追加
         // 重要: セイア・水着ホシノと同様に this.timeline_json.additional_events に保存すること
@@ -1132,6 +1136,7 @@ class TimelineProcessor {
         frame: frame_estimated,
         cost_used: row.cost_used || 0,
         event_name: row.event_name || '',
+        is_auto: row.is_auto || false, // AUTO撃ちフラグを追加
         note: row.note || [] // rowからnoteを引き継ぎ（コスト計算で警告が追加された場合）
       };
 
@@ -1158,7 +1163,7 @@ class TimelineProcessor {
       }
 
       // コスト回復バフの検出と追加イベント生成（イベント追加前に実行）
-      this.detectAndProcessBuff(processed_event.event_name, processed_event.frame);
+      this.detectAndProcessBuff(processed_event.event_name, processed_event.frame, row.is_auto);
 
       // イベントをtimeline_jsonに追加し、状態変数を更新
       this.addEventToTimeline(processed_event, 'input_row');
@@ -1379,6 +1384,7 @@ class TimelineProcessor {
         frame: target_frame,
         cost_used: event.cost_used || 0,
         event_name: event.event_name || '',
+        is_auto: event.is_auto || false, // AUTO撃ちフラグを追加
         current_cost_display_only: 0, // 後で更新
         remaining_cost_points: 0, // 後で更新
         note: event.note || [] // 警告文配列を継承
@@ -1477,12 +1483,14 @@ class TimelineProcessor {
    * 重複チェック機能も含む
    * @param {string} event_name - イベント名
    * @param {number} start_frame - 開始フレーム
+   * @param {boolean} is_auto - AUTO撃ちかどうか
    */
-  detectAndProcessBuff(event_name, start_frame) {
+  detectAndProcessBuff(event_name, start_frame, is_auto = false) {
     const buff_info = detectCostRecoveryBuff(event_name, this.buff_data);
     if (buff_info) {
       // バフイベントを作成（セイア固有2設定を含むsettingsを渡す）
-      const buff_event = this.createBuffEvent(buff_info, start_frame, this.settings);
+      // AUTO撃ちの場合1フレーム分ロスが少ない
+      const buff_event = this.createBuffEvent(buff_info, start_frame + (is_auto ? -1 : 0), this.settings);
       
       // 重複チェック: 同じbuff_targetを持つアクティブなバフがあるかチェック
       if (buff_info.buff_target) {

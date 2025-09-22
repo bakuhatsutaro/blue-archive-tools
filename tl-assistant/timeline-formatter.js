@@ -54,8 +54,15 @@
     // コストタイミング（使用時のコスト）
     const costTiming = usedCost > 0 ? (currentCost + usedCost) : currentCost;
     
-    // 基本フォーマット: カウントダウン形式のタイム [コストタイミング] イベント名
-    let line = `${gameTimeText} [${costTiming.toFixed(1)}] ${eventName}`;
+    // 基本フォーマット: カウントダウン形式のタイム [コストタイミング] AUTO（もしあれば） イベント名
+    let line = `${gameTimeText} [${costTiming.toFixed(1)}]`;
+    
+    // AUTO撃ちの場合はAUTO表示を追加
+    if (event.is_auto) {
+      line += ' AUTO';
+    }
+    
+    line += ` ${eventName}`;
     
     // 使用コスト表示
     if (usedCost > 0) {
@@ -125,6 +132,11 @@
       line += ` [${costBeforeUse.toFixed(1)}]`;
     } else {
       line += ` [${currentCost.toFixed(1)}]`;
+    }
+    
+    // AUTO撃ちの場合はAUTO表示を追加
+    if (event.is_auto) {
+      line += ' AUTO';
     }
     
     // イベント名

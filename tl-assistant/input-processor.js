@@ -90,8 +90,8 @@ function extractReference(line) {
  * @returns {Object} { beginning, event_name, ending }
  */
 function splitIntoThreeParts(text) {
-  // beginning: 行頭から始まり、数字・記号・空白のみで構成される最長の文字列
-  const beginningMatch = text.match(/^[0-9\s\[\]:\.+\-]*/);
+  // beginning: 行頭から始まり、数字・記号・空白・AUTOのみで構成される最長の文字列
+  const beginningMatch = text.match(/^(?:AUTO|[0-9\s\[\]:\.+\-])*/i);
   const beginning = beginningMatch ? beginningMatch[0] : '';
   
   const afterBeginning = text.substring(beginning.length);
@@ -128,7 +128,8 @@ function processBeginning(beginning, reference, settings = {}) {
     time: null,
     cost_timing: null,
     modifier: null,
-    modified_amount: null
+    modified_amount: null,
+    is_auto: false
   };
 
   // beginningになにも含まれない場合は何もしない
@@ -143,10 +144,17 @@ function processBeginning(beginning, reference, settings = {}) {
   const battleTime = settings.battle_time || 240;
   console.log('processBeginning: 解釈設定 =', { numberInterpretation, timeInterpretation, battleTime });
 
+  // AUTO文字列の検出と除去
+  let processedBeginning = beginning;
+  if (processedBeginning.toUpperCase().includes('AUTO')) {
+    result.is_auto = true;
+    // AUTO文字列を除去（大文字小文字を問わず）
+    processedBeginning = processedBeginning.replace(/AUTO/gi, '').trim();
+  }
+  
   // referenceが存在しない場合（空文字列またはnull）
   if (!reference) {
     // "["が含まれる場合その前に空白を挿入
-    let processedBeginning = beginning;
     if (processedBeginning.includes('[')) {
       processedBeginning = processedBeginning.replace(/\[/g, ' [');
     }
@@ -190,22 +198,21 @@ function processBeginning(beginning, reference, settings = {}) {
     }
   } else {
     // referenceが存在する場合
-    let modifiedBeginning = beginning;
     
     // beginningから+か-が含まれているか確認
-    const plusIndex = modifiedBeginning.indexOf('+');
-    const minusIndex = modifiedBeginning.indexOf('-');
+    const plusIndex = processedBeginning.indexOf('+');
+    const minusIndex = processedBeginning.indexOf('-');
     
     if (plusIndex !== -1) {
       result.modifier = '+';
-      modifiedBeginning = modifiedBeginning.replace('+', '');
+      processedBeginning = processedBeginning.replace('+', '');
     } else if (minusIndex !== -1) {
       result.modifier = '-';
-      modifiedBeginning = modifiedBeginning.replace('-', '');
+      processedBeginning = processedBeginning.replace('-', '');
     }
 
     // 空白区切りで最初の非空文字列を抽出
-    const tokens = modifiedBeginning.split(' ').filter(token => token.length > 0);
+    const tokens = processedBeginning.split(' ').filter(token => token.length > 0);
     if (tokens.length > 0) {
       const timeStr = tokens[0];
       // 修飾子処理時は flag_modifier = true を渡して backward/forward 変換をスキップ
@@ -340,9 +347,6 @@ function processEnding(ending) {
   // 残りのending部分を更新
   result.remaining_ending = processedEnding.trim();
 
-  // デバッグログ
-  console.log('extracted target:', result.target);
-
   return result;
 }
 
@@ -451,6 +455,7 @@ function createInputJSON(input_original, settings = {}) {
       cost_timing: finalCostTiming,
       modifier: beginningResult.modifier,
       modified_amount: beginningResult.modified_amount,
+      is_auto: beginningResult.is_auto,
       event_name: event_name,
       label: endingResult.label,
       cost_used: finalCostUsed,
