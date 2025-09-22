@@ -25,8 +25,8 @@ window.BUFF_DATA = {
       "buff_name": "セイアEX",
       "buff_target": "セイア",
       "buff_amount": 718,
-      "duration_frames": [450, 535],
-      "offset_frames": 98,
+      "duration_frames": [451, 536],  // 450フレーム or 536フレーム
+      "offset_frames": 99,
       "detection_patterns": [
         {
           "type": "regex",
