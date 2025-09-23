@@ -284,27 +284,8 @@ function calculateFramesFromReference(current_row, label_map, settings = {}) {
 
 // calculateFramesFromCost関数は削除されました - TimelineProcessor.calculateFramesFromCostTimingを使用してください
 
-/**
- * イベントをタイムライン形式にフォーマット
- * この関数はinput_jsonの行データに加え、additional_eventsのイベントも適切な形に変更します
- * 
- * @param {Object} current_row - 現在行のデータ
- * @param {number} frame - フレーム数
- * @returns {Object} フォーマットされたイベント
- */
-function formatEventForTimeline(current_row, frame) {
-  return {
-    // time: TLEditorCommon.framesToSeconds(frame),
-    // このレベルでtimeの形式を指定するべきでなく、最終出力でのみ
-    frame: frame,
-    event_name: current_row.event_name || '',
-    cost_used: current_row.cost_used || 0,
-    // current_cost: 0, // 注意：この値は後で更新されます
-    // AI向け指示：このkeyを使うことは想定していない。もし使う場合は私に聞くこと。
-    remaining_cost_points: 0, // 残りコストポイント
-    label: current_row.label || ''
-  };
-}
+// formatEventForTimeline関数は削除されました - 使用されていませんでした
+// （timeline-formatter.jsには異なる目的の表示フォーマット用関数群があります）
 
 /**
  * 直近の追加イベントを検索
@@ -637,7 +618,7 @@ function InitializeLabelMap(input_json) {
  * - TimelineProcessor: メイン変換処理クラス
  * 
  * 【非公開関数】（外部からアクセス不可）
- * - findMostRecentAdditionalEvent, formatEventForTimeline
+ * - findMostRecentAdditionalEvent, calculateFramesFromReference
  * - calculateTotalCostRecovery
  * - detectCostRecoveryBuff, createBuffEvent, InitializeLabelMap
  * - その他すべての内部処理関数（obsolete関数は削除済み）
