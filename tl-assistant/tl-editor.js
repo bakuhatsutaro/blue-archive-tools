@@ -167,31 +167,7 @@ const COST_RECOVERY_DECREASE_PATTERN = /コスト回復力.*(?:減|減少|低下
 // その処理はconfigがsettingsの情報を読み込む部分で行われる
 
 
-/* obsoleteのはず
-async function loadBuffData() {
-  if (BUFF_DATA) return BUFF_DATA;
-  
-  try {
-    let response;
-    if (typeof fetch !== 'undefined') {
-      // ブラウザ環境
-      response = await fetch('./buffs.json');
-      BUFF_DATA = await response.json();
-    } else {
-      // Node.js環境
-      const fs = require('fs').promises;
-      const path = require('path');
-      const dataPath = path.join(__dirname, 'buffs.json');
-      const data = await fs.readFile(dataPath, 'utf8');
-      BUFF_DATA = JSON.parse(data);
-    }
-    console.log('buffs.json読み込み完了:', BUFF_DATA);
-    return BUFF_DATA;
-  } catch (error) {
-    console.error('buffs.json読み込みエラー:', error);
-    return null;
-  }
-}*/
+// loadBuffData関数は削除されました - TL-assistant.htmlで独自実装されています
 
 /**
  * 出力データ構造の定義
@@ -240,60 +216,7 @@ const DEFAULT_EVENTS = {
 // 4. 基本処理関数
 // ==============================
 
-/**
- * この関数はobsoleteとします。使うときは警告文をだすようにしてください。
- * タイムライン行の処理
- * 
- * 【処理内容】
- * 1. 時間とフレームの計算（時間指定/コスト指定/参照指定の場合分け）
- * 2. イベント情報の整理（名前・コスト・ラベル）
- * 3. 出力形式への変換
- * 
- * 【入力】
- * - current_row: input_jsonのtimeline要素
- * - cost_state: 現在のコスト状態
- * - label_map: ラベル→時間マッピング
- * - additional_events: 追加イベントリスト
- * - settings: 設定オブジェクト
- * 
- * 【出力】
- * - timeline_event: 整形されたイベントオブジェクト
- */
-function processTimelineRow(current_row, cost_state, label_map, additional_events, settings = {}) {
-  // 警告: この関数はobsoleteです。使用しないでください。
-  console.warn('警告: processTimelineRowはobsoleteです。今後使用しないでください。');
-  
-  let frame_estimated = 0;
-
-  /** 
-   * 1. 推定フレーム数(frame_estimated)を計算する
-   * Priority 1: 時間が指定されている場合は、その時間を単純にフレーム数に変換する
-   * Priority 2: 参照指定がある場合は、ラベルマップを使用してフレーム数を取得する
-   * Priority 3: コストタイミング指定がある場合は、そのコストにたどり着くまでの
-   *             フレーム数を計算し、そこからフレーム数を取得する
-   */
-  if (current_row.time) {
-    // Priority 1: 明示的な時間指定
-    frame_estimated = TLEditorCommon.secondsToFrames(current_row.time);
-  } else {
-    if (current_row.reference) {
-      // Priority 2: 参照指定
-      frame_estimated = calculateFramesFromReference(current_row, label_map, settings);
-    } else if (current_row.cost_timing) {
-      // Priority 3: コスト指定からの推定
-      console.warn('警告: processTimelineRowはobsoleteです。新しいTimelineProcessorクラスを使用してください。');
-      frame_estimated = calculateFramesFromCost(current_row.cost_timing, cost_state);
-    } else {
-      throw new Error('時間、参照、またはコスト指定のいずれかが必要です');
-    }
-    current_row.time = TLEditorCommon.framesToSeconds(frame_estimated);
-  }
-
-  // 2. イベント情報の整理
-  const timeline_event = formatEventForTimeline(current_row, frame_estimated);
-
-  return timeline_event;
-}
+// processTimelineRow関数は削除されました - TimelineProcessorクラスを使用してください
 
 /**
  * calculateFramesFromReference: 参照時点のタイムあるいはフレームを取得し、
@@ -359,32 +282,7 @@ function calculateFramesFromReference(current_row, label_map, settings = {}) {
   }
 }
 
-/**
- * 【obsolete】この関数は使用しないでください
- * calculateFramesFromCostはTimelineProcessorクラスのメンバ関数として実装し直されました
- * 
- * @param {number} cost_timing - コスト指定値
- * @param {Object} cost_state - 現在のコスト状態
- * @returns {number} 計算されたフレーム数
- */
-function calculateFramesFromCost(cost_timing, cost_state) {
-  console.warn('警告: calculateFramesFromCostはobsoleteです。TimelineProcessor.calculateFramesFromCostTimingを使用してください。');
-  
-  // 旧版の実装（互換性のため残す）
-  const current_cost = cost_state.remaining_cost_points / COST_POINT_UNIT;
-  const target_cost = cost_timing;
-  
-  if (current_cost >= target_cost) {
-    return cost_state.current_frame;
-  }
-  
-  const cost_needed = target_cost - current_cost;
-  const cost_points_needed = cost_needed * COST_POINT_UNIT;
-  const total_cost_recovery = cost_state.total_cost_recovery;
-  const frames_needed = Math.ceil(cost_points_needed / total_cost_recovery);
-  
-  return cost_state.current_frame + frames_needed;
-}
+// calculateFramesFromCost関数は削除されました - TimelineProcessor.calculateFramesFromCostTimingを使用してください
 
 /**
  * イベントをタイムライン形式にフォーマット
@@ -401,7 +299,7 @@ function formatEventForTimeline(current_row, frame) {
     frame: frame,
     event_name: current_row.event_name || '',
     cost_used: current_row.cost_used || 0,
-    // current_cost: 0, // processTimelineRowの呼び出し元で設定
+    // current_cost: 0, // 注意：この値は後で更新されます
     // AI向け指示：このkeyを使うことは想定していない。もし使う場合は私に聞くこと。
     remaining_cost_points: 0, // 残りコストポイント
     label: current_row.label || ''
@@ -523,11 +421,7 @@ function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled
   return total_cost_recovery;
 }
 
-// calculateCostPointsRecovered: コスト回復量の計算（コストポイント単位）
-// 使われていないため削除済み。以前の定義:
-// function calculateCostPointsRecovered(frames, total_cost_recovery) {
-//   return frames * total_cost_recovery;
-// }
+// calculateCostPointsRecovered関数は削除されました - 使用されていませんでした
 
 // ==============================
 // 6. 特殊イベント処理
@@ -743,10 +637,10 @@ function InitializeLabelMap(input_json) {
  * - TimelineProcessor: メイン変換処理クラス
  * 
  * 【非公開関数】（外部からアクセス不可）
- * - processTimelineRow, findMostRecentAdditionalEvent, formatEventForTimeline
- * - calculateFramesFromCost, calculateTotalCostRecovery
+ * - findMostRecentAdditionalEvent, formatEventForTimeline
+ * - calculateTotalCostRecovery
  * - detectCostRecoveryBuff, createBuffEvent, InitializeLabelMap
- * - loadBuffData, その他すべての内部処理関数
+ * - その他すべての内部処理関数（obsolete関数は削除済み）
  */
 
 // ==============================
