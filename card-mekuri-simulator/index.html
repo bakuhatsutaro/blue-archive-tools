@@ -165,7 +165,7 @@
         <p>
             <a href="https://kina-ko-m-ochi.net/card/" target="_blank" rel="noopener">きなこもち先生のカードシミュレーター</a><br>
             <a href="https://x.com/seyoseyo_BA/status/1971132488153170241" target="_blank" rel="noopener">せよせよ先生の考察</a><br>
-            <a href="https://x.com/suyachive/status/1971079251492487252" target="_blank" rel="noopener">その基になったスヤ先生の新宗教</a>
+            <a href="https://x.com/suyachive/status/1971079251492487252" target="_blank" rel="noopener">その基になったスヤ先の新宗教</a>
         </p>
             <button class="accordion" onclick="toggleAccordion(this)">詳細設定</button>
             <div class="accordion-content">
@@ -322,8 +322,7 @@
                 
                 return {
                     inventory: { ...this.inventory },
-                    log: [...this.log],
-                    remainingPoints: this.points
+                    log: [...this.log]
                 };
             }
 
@@ -379,9 +378,6 @@
                     const simulator = new CardMekuri(initialPoints);
                     const result = simulator.executeStrategy(strategy.regex);
                     
-                    // 残りポイントの割合計算
-                    const remainingPercentage = ((result.remainingPoints / initialPoints) * 100).toFixed(1);
-                    
                     // 獲得確率計算
                     const totalCards = result.inventory.N + result.inventory.R + result.inventory.SR + result.inventory.UR;
                     const probabilities = {
@@ -396,7 +392,7 @@
                     strategyCard.className = `strategy-card strategy-${index + 1}`;
                     
                     strategyCard.innerHTML = `
-                        <h3>${strategy.name} (残りポイント: ${remainingPercentage}%)</h3>
+                        <h3>${strategy.name}</h3>
                         <div class="stats">
                             <div class="stats-row">
                                 <h4>獲得カード</h4>
@@ -426,11 +422,11 @@
                     resultsContainer.appendChild(strategyCard);
                 }
                 
-                // 完了表示
-                progressText.textContent = '完了';
+                // 最終完了表示
+                progressText.textContent = '全戦略完了';
                 setTimeout(() => {
                     progressText.textContent = '';
-                }, 2000);
+                }, 3000);
             }
             
             // 非同期実行を開始
