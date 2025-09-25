@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブルーアーカイブ カードめくりシミュレーターＢ</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f8ff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #2c5aa0;
+            margin-bottom: 30px;
+        }
+        .settings {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .setting-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: inline-block;
+            width: 150px;
+            font-weight: bold;
+        }
+        input[type="number"] {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .strategy-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .strategy-results {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .strategy-card {
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+        }
+        .strategy-1 { border-color: #ff6b6b; }
+        .strategy-2 { border-color: #4ecdc4; }
+        .strategy-3 { border-color: #45b7d1; }
+        
+        .rarity-N { color: #888; }
+        .rarity-R { color: #4a90e2; }
+        .rarity-SR { color: #f5a623; }
+        .rarity-UR { color: #8e44ad; }
+        
+        .stats-row {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            margin: 2px 0;
+        }
+        
+        .card-results {
+            display: flex;
+            gap: 15px;
+            font-weight: bold;
+        }
+        
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            border: 1px solid #ddd;
+        }
+        .stats {
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #e8f4f8;
+            border-radius: 5px;
+        }
+        .stats h4 {
+            margin: 2px 0;
+        }
+        
+        .accordion {
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border: none;
+            outline: none;
+            transition: background-color 0.3s;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            width: 100%;
+            text-align: left;
+            color: black;
+        }
+        
+        .accordion:hover {
+            background-color: #ddd;
+        }
+        
+        .accordion.active {
+            background-color: #ccc;
+        }
+        
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        
+        .accordion-content.active {
+            max-height: 500px;
+        }
+        
+        .progress-container {
+            display: inline-block;
+            margin-left: 20px;
+            vertical-align: middle;
+        }
+        
+        .progress-text {
+            font-weight: bold;
+            color: #2c5aa0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ブルーアーカイブ カードめくりシミュレーターＢ</h1>
+        <div class="settings">
+            <h3>偉大なる先人：</h3>
+        <p>
+            <a href="https://kina-ko-m-ochi.net/card/" target="_blank" rel="noopener">きなこもち先生のカードシミュレーター</a><br>
+            <a href="https://x.com/seyoseyo_BA/status/1971132488153170241" target="_blank" rel="noopener">せよせよ先生の考察</a><br>
+            <a href="https://x.com/suyachive/status/1971079251492487252" target="_blank" rel="noopener">その基になったスヤ先生の新宗教</a>
+        </p>
+            <button class="accordion" onclick="toggleAccordion(this)">詳細設定</button>
+            <div class="accordion-content">
+                <div class="setting-group">
+                    <label>初期ポイント:</label>
+                    <input type="number" id="initialPoints" value="20000000">
+                </div>
+                <div class="setting-group">
+                    <label>ドローコスト:</label>
+                    <input type="number" id="cost1" value="200" placeholder="1枚目"> 
+                    <input type="number" id="cost2" value="200" placeholder="2枚目">
+                    <input type="number" id="cost3" value="200" placeholder="3枚目">
+                    <input type="number" id="cost4" value="200" placeholder="4枚目">
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="debugMode"> デバッグモード（詳細ログ表示）
+                    </label>
+                </div>
+            </div>
+            <button onclick="runAllStrategies()">シミュレーション実行</button>
+            <div class="progress-container">
+                <span id="progressText" class="progress-text"></span>
+            </div>
+        </div>
+        
+        <div class="strategy-results" id="results">
+        </div>
+    </div>
+
+    <script>
+        // グローバル変数
+        let DRAW_VALUES = [200, 200, 200, 200];
+        let DEBUG_MODE = false; // デバッグフラグ
+
+        class Deck {
+            constructor() {
+                this.cards = [];
+                this.selected_card_index = 0; // 1-4の値
+                this.next_card_index = 1;
+                this.reset();
+            }
+
+            reset() {
+                // 1から4の中から確率が違うカードを選択
+                this.selected_card_index = Math.floor(Math.random() * 4) + 1;
+                this.next_card_index = 1;
+                
+                // カードの生成
+                this.cards = [];
+                for (let i = 1; i <= 4; i++) {
+                    if (i === this.selected_card_index) {
+                        // 確定枠の確率 [0, 0, 0.92, 0.08]
+                        this.cards.push(this.generateCard([0, 0, 0.92, 0.08]));
+                    } else {
+                        // 通常枠の確率 [0.40, 0.32, 0.20, 0.08]
+                        this.cards.push(this.generateCard([0.40, 0.32, 0.20, 0.08]));
+                    }
+                }
+            }
+
+            generateCard(probabilities) {
+                const rarities = ['N', 'R', 'SR', 'UR'];
+                const rand = Math.random();
+                let cumulative = 0;
+                
+                for (let i = 0; i < probabilities.length; i++) {
+                    cumulative += probabilities[i];
+                    if (rand < cumulative) {
+                        return rarities[i];
+                    }
+                }
+                return rarities[rarities.length - 1];
+            }
+
+            draw() {
+                if (this.next_card_index > 4) {
+                    this.reset();
+                }
+                
+                const card_drawn = this.cards[this.next_card_index - 1];
+                const cost_paid = DRAW_VALUES[this.next_card_index - 1];
+                const current_index = this.next_card_index;
+                
+                // results_strを生成（0からnext_card_index-1までのカード）
+                const results_str = this.cards.slice(0, this.next_card_index).join(' ');
+                
+                this.next_card_index += 1;
+                
+                return {
+                    card: card_drawn,
+                    cost_paid: cost_paid,
+                    next_card_index: current_index,
+                    results_str: results_str
+                };
+            }
+        }
+
+        class CardMekuri {
+            constructor(initialPoints = 4000) {
+                this.deck = new Deck();
+                this.initialPoints = initialPoints;
+                this.reset();
+            }
+
+            reset() {
+                this.points = this.initialPoints;
+                this.inventory = { N: 0, R: 0, SR: 0, UR: 0 };
+                this.log = [];
+                this.deck.reset();
+            }
+
+            logAction(action, card, deckContents, guaranteePosition, cost = 0, results_str = '') {
+                if (DEBUG_MODE) {
+                    const logEntry = `${action}: ${card}, デッキ内[${deckContents.join(', ')}], 最低保証: ${guaranteePosition}枚目, コスト: ${cost}, 残りポイント: ${this.points}, 結果: ${results_str}`;
+                    this.log.push(logEntry);
+                }
+            }
+
+            // 統一された戦略関数
+            executeStrategy(resetRegex) {
+                this.reset();
+
+                while (this.points > 0) {
+                    const result = this.deck.draw();
+                    
+                    if (this.points < result.cost_paid) {
+                        if (DEBUG_MODE) {
+                            this.log.push(`ポイント不足でゲーム終了 (必要: ${result.cost_paid}, 残り: ${this.points})`);
+                        }
+                        break;
+                    }
+                    
+                    this.points -= result.cost_paid;
+                    this.inventory[result.card]++;
+                    
+                    this.logAction(
+                        `${result.next_card_index}枚目ドロー`,
+                        result.card,
+                        this.deck.cards,
+                        this.deck.selected_card_index,
+                        result.cost_paid,
+                        result.results_str
+                    );
+
+                    // 正規表現でリセット条件をチェック
+                    if (resetRegex.test(result.results_str)) {
+                        this.deck.reset();
+                        if (DEBUG_MODE) {
+                            this.log.push(`正規表現マッチによりデッキリセット (パターン: ${resetRegex.source})`);
+                        }
+                    }
+                }
+                
+                return {
+                    inventory: { ...this.inventory },
+                    log: [...this.log],
+                    remainingPoints: this.points
+                };
+            }
+
+            // 戦略メソッドは削除 - executeStrategyを直接使用
+        }
+
+        function updateDrawValues() {
+            DRAW_VALUES[0] = parseInt(document.getElementById('cost1').value) || 200;
+            DRAW_VALUES[1] = parseInt(document.getElementById('cost2').value) || 200;
+            DRAW_VALUES[2] = parseInt(document.getElementById('cost3').value) || 200;
+            DRAW_VALUES[3] = parseInt(document.getElementById('cost4').value) || 200;
+        }
+
+        function runAllStrategies() {
+            updateDrawValues();
+            
+            let initialPoints = parseInt(document.getElementById('initialPoints').value) || 20000000;
+            DEBUG_MODE = document.getElementById('debugMode').checked;
+            
+            // デバッグモード時はポイント数を4000に強制
+            if (DEBUG_MODE) {
+                initialPoints = 4000;
+            }
+            
+            const strategies = [
+                { name: '戦略1: 全めくり', regex: /(?!.*)/ },
+                { name: '戦略2: SRでリセット', regex: /\bSR$/ },
+                { name: '戦略3: SRかURでリセット', regex: /\b(SR|UR)$/ },
+                { name: '戦略4:「SR」か「UR2連」でリセット、初手URでもリセット', regex: /(\bSR$|\bUR UR$|^UR$)/ },
+                { name: '戦略5:「SR」でリセット、初手に限りURでもリセット', regex: /(\bSR$|^UR$)/ }
+            ];
+
+            const resultsContainer = document.getElementById('results');
+            const progressText = document.getElementById('progressText');
+            
+            // 結果をクリア
+            resultsContainer.innerHTML = '';
+            progressText.textContent = '';
+            
+            const totalStrategies = strategies.length;
+
+            // 非同期で各戦略を順次実行
+            async function executeStrategiesSequentially() {
+                for (let index = 0; index < strategies.length; index++) {
+                    const strategy = strategies[index];
+                    
+                    // 進捗表示
+                    progressText.textContent = `実行中... ${index + 1}/${totalStrategies}`;
+                    
+                    // UIの更新を待つ
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    
+                    const simulator = new CardMekuri(initialPoints);
+                    const result = simulator.executeStrategy(strategy.regex);
+                    
+                    // 残りポイントの割合計算
+                    const remainingPercentage = ((result.remainingPoints / initialPoints) * 100).toFixed(1);
+                    
+                    // 獲得確率計算
+                    const totalCards = result.inventory.N + result.inventory.R + result.inventory.SR + result.inventory.UR;
+                    const probabilities = {
+                        N: totalCards > 0 ? (result.inventory.N / totalCards * 100).toFixed(1) : 0,
+                        R: totalCards > 0 ? (result.inventory.R / totalCards * 100).toFixed(1) : 0,
+                        SR: totalCards > 0 ? (result.inventory.SR / totalCards * 100).toFixed(1) : 0,
+                        UR: totalCards > 0 ? (result.inventory.UR / totalCards * 100).toFixed(1) : 0
+                    };
+
+                    // 結果表示
+                    const strategyCard = document.createElement('div');
+                    strategyCard.className = `strategy-card strategy-${index + 1}`;
+                    
+                    strategyCard.innerHTML = `
+                        <h3>${strategy.name} (残りポイント: ${remainingPercentage}%)</h3>
+                        <div class="stats">
+                            <div class="stats-row">
+                                <h4>獲得カード</h4>
+                                <div class="card-results">
+                                    <span class="rarity-N">N: ${result.inventory.N}</span>
+                                    <span class="rarity-R">R: ${result.inventory.R}</span>
+                                    <span class="rarity-SR">SR: ${result.inventory.SR}</span>
+                                    <span class="rarity-UR">UR: ${result.inventory.UR}</span>
+                                </div>
+                            </div>
+                            <div class="stats-row">
+                                <h4>獲得確率</h4>
+                                <div class="card-results">
+                                    <span class="rarity-N">N: ${probabilities.N}%</span>
+                                    <span class="rarity-R">R: ${probabilities.R}%</span>
+                                    <span class="rarity-SR">SR: ${probabilities.SR}%</span>
+                                    <span class="rarity-UR">UR: ${probabilities.UR}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        ${DEBUG_MODE ? `<h4>詳細ログ</h4>
+                        <div class="log-container">
+                            ${result.log.map(log => `<div>${log}</div>`).join('')}
+                        </div>` : ''}
+                    `;
+                    
+                    resultsContainer.appendChild(strategyCard);
+                }
+                
+                // 完了表示
+                progressText.textContent = '完了';
+                setTimeout(() => {
+                    progressText.textContent = '';
+                }, 2000);
+            }
+            
+            // 非同期実行を開始
+            executeStrategiesSequentially();
+        }
+
+        function toggleAccordion(element) {
+            element.classList.toggle('active');
+            const content = element.nextElementSibling;
+            content.classList.toggle('active');
+        }
+
+        // 初期読み込み時は自動実行しない
+        // window.addEventListener('load', () => {
+        //     runAllStrategies();
+        // });
+    </script>
+</body>
+</html>

@@ -139,6 +139,19 @@ const TLEditorCommon = (() => {
   }
 })();
 
+// RadiatorManagerの参照（遅延初期化）
+function getTLEditorRadiatorManager() {
+  if (typeof module !== 'undefined' && module.exports) {
+    // Node.js環境
+    return require('./radiator-manager.js').RadiatorManager;
+  } else if (typeof window !== 'undefined' && window.RadiatorManager) {
+    // ブラウザ環境
+    return window.RadiatorManager;
+  } else {
+    throw new Error('radiator-manager.js が読み込まれていません。先に radiator-manager.js を読み込んでください。');
+  }
+}
+
 // 共通定数の参照
 const COST_POINT_UNIT = 30 * 10000;  // コスト1.0 = 300,000ポイント
 
@@ -659,6 +672,10 @@ class TimelineProcessor {
     this.input_json = input_json;
     this.settings = settings;
     this.buff_data = buff_data; // バフデータを保存
+    
+    // RadiatorManagerの初期化
+    const RadiatorManagerClass = getTLEditorRadiatorManager();
+    this.radiatorManager = new RadiatorManagerClass();
     
     // Step 1.b. 定数の設定、settingsの読み込み
     this.max_cost = settings.max_cost || COST_SETTINGS.DEFAULT_MAX_COST;
@@ -1385,6 +1402,29 @@ class TimelineProcessor {
    */
   createTimelineJSON() {
     try {
+      this.radiatorManager.extractAndProcessRadiatorEvents(this.input_json.timeline);
+      this.radiatorManager.calculateRadiatorIntervals(this.battle_time * 30);
+
+      // デバッグ用：RadiatorManagerの状態をコンソール表示
+      console.log('=== RadiatorManager デバッグ情報 ===');
+      console.log('ラジエーターイベント数:', this.radiatorManager.radiator_events?.length || 0);
+      console.log('ラジエーター区間数:', this.radiatorManager.radiator_intervals?.length || 0);
+      
+      if (this.radiatorManager.radiator_intervals?.length > 0) {
+        console.log('=== ラジエーター区間詳細 ===');
+        this.radiatorManager.radiator_intervals.forEach((interval, index) => {
+          const startSec = (interval.start_frame / 30).toFixed(1);
+          const endSec = (interval.end_frame / 30).toFixed(1);
+          console.log(`区間${index + 1}: ${startSec}秒(${interval.start_frame}f) ～ ${endSec}秒(${interval.end_frame}f) [自動延長: ${interval.auto_extended}]`);
+        });
+      } else {
+        console.log('ラジエーター区間は検出されませんでした');
+      }
+      console.log('=== RadiatorManager デバッグ情報終了 ===');
+      
+      //this.addAllRadiatorEvents();
+
+
       // ========================================
       // Step 2. メインループ: 各タイムライン行を処理    
       // ========================================
