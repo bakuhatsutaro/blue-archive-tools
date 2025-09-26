@@ -20,7 +20,7 @@
  * 5. モジュールエクスポート
  */
 
-// console.log('input-processor.js: スクリプト開始');
+console.log('input-processor.js: スクリプト開始');
 
 // ==============================
 // 1. 外部依存関数の参照
@@ -482,12 +482,12 @@ function createInputJSON(input_original, settings = {}) {
 
 // モジュールとしてエクスポート（ブラウザ環境では window オブジェクトに追加）
 if (typeof module !== 'undefined' && module.exports) {
-  // console.log('input-processor.js: Node.js環境でエクスポート');
+  console.log('input-processor.js: Node.js環境でエクスポート');
   module.exports = {
     createInputJSON
   };
 } else if (typeof window !== 'undefined') {
-  // console.log('input-processor.js: ブラウザ環境でエクスポート');
+  console.log('input-processor.js: ブラウザ環境でエクスポート');
   window.InputProcessor = {
     createInputJSON
   };
