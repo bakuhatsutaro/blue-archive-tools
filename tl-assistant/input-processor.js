@@ -20,7 +20,7 @@
  * 5. モジュールエクスポート
  */
 
-console.log('input-processor.js: スクリプト開始');
+// console.log('input-processor.js: スクリプト開始');
 
 // ==============================
 // 1. 外部依存関数の参照
@@ -138,11 +138,11 @@ function processBeginning(beginning, reference, settings = {}) {
   }
 
   // デフォルト設定
-  console.log('processBeginning: 受け取ったsettings =', settings);
+  // console.log('processBeginning: 受け取ったsettings =', settings);
   const numberInterpretation = settings.number_interpretation || 'cost';
   const timeInterpretation = settings.time_display_format || 'backward'; // 'forward' または 'backward'
   const battleTime = settings.battle_time || 240;
-  console.log('processBeginning: 解釈設定 =', { numberInterpretation, timeInterpretation, battleTime });
+  // console.log('processBeginning: 解釈設定 =', { numberInterpretation, timeInterpretation, battleTime });
 
   // AUTO文字列の検出と除去
   let processedBeginning = beginning;
@@ -393,7 +393,7 @@ function processUserInputWithFrames(input_original, direction = 'forward', total
  * @returns {Array} input_json - 配列
  */
 function createInputJSON(input_original, settings = {}) {
-  console.log('createInputJSON called with settings:', settings);
+  console.log('createInputJSON - 文字列をJSON化し処理可能な形に変換します。\n受け取った設定:', settings);
   
   if (typeof input_original !== 'string') {
     return [];
@@ -472,6 +472,7 @@ function createInputJSON(input_original, settings = {}) {
     input_json.push(row_object);
   }
 
+  console.log('createInputJSON: 生成されたinput_json =', input_json);
   return input_json;
 }
 
@@ -481,12 +482,12 @@ function createInputJSON(input_original, settings = {}) {
 
 // モジュールとしてエクスポート（ブラウザ環境では window オブジェクトに追加）
 if (typeof module !== 'undefined' && module.exports) {
-  console.log('input-processor.js: Node.js環境でエクスポート');
+  // console.log('input-processor.js: Node.js環境でエクスポート');
   module.exports = {
     createInputJSON
   };
 } else if (typeof window !== 'undefined') {
-  console.log('input-processor.js: ブラウザ環境でエクスポート');
+  // console.log('input-processor.js: ブラウザ環境でエクスポート');
   window.InputProcessor = {
     createInputJSON
   };
