@@ -835,11 +835,13 @@ class TimelineProcessor {
    */
   processSpecialCommand(original_event) {
     // 0) is_special_commandキーを追加
-    original_event.is_special_command = false;
+    if (typeof original_event.is_special_command === 'undefined' || original_event.is_special_command === null) {
+      original_event.is_special_command = false;
+    }
     
-    console.log(`=== processSpecialCommand Debug ===`);
-    console.log(`event_name: "${original_event.event_name}"`);
-    console.log(`settings.special_command_accepted: "${this.settings.special_command_accepted}"`);
+    // console.log(`=== processSpecialCommand Debug ===`);
+    // console.log(`event_name: "${original_event.event_name}"`);
+    // console.log(`settings.special_command_accepted: "${this.settings.special_command_accepted}"`);
     
     // 1) 与えられた条件を満たしているか確認
     // 現在は設定で特殊コマンドが有効になっているかのみチェック
@@ -858,7 +860,6 @@ class TimelineProcessor {
     // 2) イベント名に「コスト回復力増加」または「コスト回復力減少」が含まれているかチェック
     const isIncreasePattern = COST_RECOVERY_INCREASE_PATTERN.test(original_event.event_name);
     const isDecreasePattern = COST_RECOVERY_DECREASE_PATTERN.test(original_event.event_name);
-    console.log(`Increase pattern test: ${isIncreasePattern}, Decrease pattern test: ${isDecreasePattern}`);
     
     if (isIncreasePattern || isDecreasePattern) {
       const commandType = isIncreasePattern ? 'increase' : 'decrease';
@@ -959,10 +960,52 @@ class TimelineProcessor {
       }
       return;
     } else {
-      console.log('パターンにマッチしませんでした');
+      if (original_event.is_special_command) {
+        console.log(`processSpecialCommand: イベント「${original_event.event_name}」は特殊コマンド（追加処理なし）`);
+      } else {
+        console.log(`processSpecialCommand: イベント「${original_event.event_name}」は通常コマンドとして処理`);
+      }
+    }
+    // 条件を満たさない場合はfalseのまま
+  }
+
+  /**
+   * ラジエーター区間をadditional_eventsに追加する
+   * RadiatorManagerで計算された有効区間をラジエーターバフとして additional_events に追加
+   */
+  addAllRadiatorEvents() {
+    if (!this.radiatorManager || !this.radiatorManager.radiator_intervals) {
+      console.log('RadiatorManager またはラジエーター区間が存在しません');
+      return;
     }
     
-    // 条件を満たさない場合はfalseのまま
+    // 各ラジエーター区間に対してバフイベントを作成・追加
+    for (let i = 0; i < this.radiatorManager.radiator_intervals.length; i++) {
+      const interval = this.radiatorManager.radiator_intervals[i];
+      
+      // ラジエーター用のbuff_info作成
+      const radiator_buff_info = {
+        buff_name: `ラジエーター過負荷${i + 1}`,
+        buff_target: "all", // 全体効果
+        buff_amount: 500,   // buffs.jsのradiator_startと同じ値
+        duration_frames: interval.end_frame - interval.start_frame,
+        offset_frames: 0
+      };
+      
+      // createBuffEventを使用してバフイベント作成
+      const radiator_buff_event = this.createBuffEvent(
+        radiator_buff_info,
+        interval.start_frame,
+        this.settings
+      );
+      
+      // additional_eventsに追加
+      this.timeline_json.additional_events.push(radiator_buff_event);
+      
+      console.log(`ラジエーターバフ${i + 1}を追加: フレーム${interval.start_frame} ～ ${interval.end_frame} (${radiator_buff_info.duration_frames}フレーム)`);
+    }
+    
+    console.log(`ラジエーター区間 ${this.radiatorManager.radiator_intervals.length}個をadditional_eventsに追加完了`);
   }
 
   /**
@@ -998,12 +1041,12 @@ class TimelineProcessor {
           this.findMostRecentAdditionalEvent(this.timeline_json.additional_events, this.state.current_frame);
 
         // デバッグ: コスト計算の詳細を追跡
-        if (row.cost_timing) {
-          console.log(`=== コスト計算デバッグ (${row.event_name}) ===`);
-          console.log(`目標コスト: ${row.cost_timing}, 現在フレーム: ${this.state.current_frame}, 推定フレーム: ${frame_estimated}`);
-          console.log(`現在のtotal_cost_recovery: ${this.state.total_cost_recovery}`);
-          console.log(`next additional_event: ${most_recent_additional_event_frame ? `${most_recent_additional_event_frame} (${most_recent_additional_event?.event_name})` : 'なし'}`);
-        }
+        // if (row.cost_timing) {
+        //   console.log(`=== コスト計算デバッグ (${row.event_name}) ===`);
+        //   console.log(`目標コスト: ${row.cost_timing}, 現在フレーム: ${this.state.current_frame}, 推定フレーム: ${frame_estimated}`);
+        //   console.log(`現在のtotal_cost_recovery: ${this.state.total_cost_recovery}`);
+        //   console.log(`next additional_event: ${most_recent_additional_event_frame ? `${most_recent_additional_event_frame} (${most_recent_additional_event?.event_name})` : 'なし'}`);
+        // }
 
         // イベント実行順序の判定と処理
         if (most_recent_additional_event_frame !== null && most_recent_additional_event_frame <= frame_estimated) {
@@ -1401,6 +1444,7 @@ class TimelineProcessor {
    * @returns {Object} timeline_json - 生成されたタイムラインデータ
    */
   createTimelineJSON() {
+    console.log('=== TimelineProcessor.createTimelineJSON 開始 ===');
     try {
       this.radiatorManager.extractAndProcessRadiatorEvents(this.input_json.timeline);
       this.radiatorManager.calculateRadiatorIntervals(this.battle_time * 30);
@@ -1420,9 +1464,12 @@ class TimelineProcessor {
       } else {
         console.log('ラジエーター区間は検出されませんでした');
       }
+      console.log('=== input_json.timeline デバッグ出力 ===');
+      console.log(JSON.stringify(this.input_json.timeline, null, 2));
       console.log('=== RadiatorManager デバッグ情報終了 ===');
       
-      //this.addAllRadiatorEvents();
+      this.addAllRadiatorEvents();
+      console.log('additional_events after adding radiator events:', this.timeline_json.additional_events);
 
 
       // ========================================
@@ -1436,8 +1483,13 @@ class TimelineProcessor {
         
         // 特殊コマンドの場合は通常の処理をスキップ
         if (row.is_special_command) {
+          console.log(`行${i + 1}は特殊コマンドとして処理されました。通常のタイミング解決をスキップします。`);
           continue;
         }
+        else {
+          console.log(`行${i + 1}は通常コマンドとして処理されます。`);
+        }
+        console.log('row:', row);
         
         // resolveRowTimingメソッドがaddEventToTimelineを呼び出してイベントを追加済み
         this.resolveRowTiming(row, i);
