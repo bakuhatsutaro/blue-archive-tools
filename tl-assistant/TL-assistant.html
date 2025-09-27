@@ -1517,7 +1517,7 @@
      * - utilities.js: parseTimeToSeconds等のユーティリティ関数
      * - input-processor.js: createInputJSON関数  
      * - tl-editor.js: TimelineProcessorクラス
-     * - timeline-formatter.js: generateTimelineHTML関数
+     * - timeline-formatter.js: generateTimelineNew関数
      */
     function checkDependencies() {
       const missing = [];
@@ -1563,9 +1563,9 @@
         missing.push('timeline-formatter.js');
         details.push('window.TimelineFormatter が undefined');
       } else {
-        if (typeof window.TimelineFormatter.generateTimelineHTML === 'undefined') {
-          missing.push('timeline-formatter.js (generateTimelineHTML関数なし)');
-          details.push('window.TimelineFormatter.generateTimelineHTML が undefined');
+        if (typeof window.TimelineFormatter.generateTimelineNew === 'undefined') {
+          missing.push('timeline-formatter.js (generateTimelineNew関数なし)');
+          details.push('window.TimelineFormatter.generateTimelineNew が undefined');
         } else {
           details.push('✓ timeline-formatter.js OK');
         }
