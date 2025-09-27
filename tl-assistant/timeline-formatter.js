@@ -178,13 +178,17 @@
     
     let textOutput = '';
     
+    // 総使用コストを計算
+    const totalUsedCost = timeline.reduce((total, event) => {
+      return total + (event.cost_used || 0);
+    }, 0);
+    
+    // 最終イベント時間を計算（最後のイベントの時間）
+    const finalEventTime = timeline.length > 0 ? (timeline[timeline.length - 1].frame / 30.0) : 0;
+    
     // ヘッダー情報
-    textOutput += '=== タイムライン（処理済み） ===\n';
-    textOutput += `戦闘時間: ${battleTime}秒\n`;
-    textOutput += `総イベント数: ${timeline.length}\n`;
-    if (timelineJSON.metadata?.final_cost !== undefined) {
-      textOutput += `最終コスト: ${timelineJSON.metadata.final_cost.toFixed(2)}\n`;
-    }
+    textOutput += `最終イベント時間: ${finalEventTime.toFixed(3)}秒\t`;
+    textOutput += `総使用コスト: ${totalUsedCost.toFixed(0)}\n`;
     textOutput += '\n';
 
     // タイムラインイベント
@@ -280,14 +284,18 @@
     
     htmlOutput += '</pre>';
     
+    // 総使用コストを計算
+    const totalUsedCost = timeline.reduce((total, event) => {
+      return total + (event.cost_used || 0);
+    }, 0);
+    
+    // 最終イベント時間を計算（最後のイベントの時間）
+    const finalEventTime = timeline.length > 0 ? (timeline[timeline.length - 1].frame / 30.0) : 0;
+    
     // テキスト形式の完全版を組み立て
     let textOutput = '';
-    textOutput += '=== タイムライン（処理済み） ===\n';
-    textOutput += `戦闘時間: ${battleTime}秒\n`;
-    textOutput += `総イベント数: ${timeline.length}\n`;
-    if (timelineJSON.metadata?.final_cost !== undefined) {
-      textOutput += `最終コスト: ${timelineJSON.metadata.final_cost.toFixed(2)}\n`;
-    }
+    textOutput += `最終イベント時間: ${finalEventTime.toFixed(3)}秒\t`;
+    textOutput += `総使用コスト: ${totalUsedCost.toFixed(0)}\n`;
     textOutput += '\n';
     textOutput += textLines.join('\n');
     
@@ -335,14 +343,18 @@
     
     htmlOutput += '</pre>';
     
+    // 総使用コストを計算
+    const totalUsedCost = timeline.reduce((total, event) => {
+      return total + (event.cost_used || 0);
+    }, 0);
+    
+    // 最終イベント時間を計算（最後のイベントの時間）
+    const finalEventTime = timeline.length > 0 ? (timeline[timeline.length - 1].frame / 30.0) : 0;
+    
     // テキスト形式の完全版を組み立て
     let textOutput = '';
-    textOutput += '=== タイムライン（処理済み） ===\n';
-    textOutput += `戦闘時間: ${battleTime}秒\n`;
-    textOutput += `総イベント数: ${timeline.length}\n`;
-    if (timelineJSON.metadata?.final_cost !== undefined) {
-      textOutput += `最終コスト: ${timelineJSON.metadata.final_cost.toFixed(2)}\n`;
-    }
+    textOutput += `最終イベント時間: ${finalEventTime.toFixed(3)}秒\t`;
+    textOutput += `総使用コスト: ${totalUsedCost.toFixed(0)}\n`;
     textOutput += '\n';
     textOutput += textLines.join('\n');
     
