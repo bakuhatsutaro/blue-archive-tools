@@ -208,7 +208,7 @@
     }
     
     textarea {
-      width: 100%;
+      width: 96.5%;
       height: 300px;
       padding: 12px;
       border: 2px solid #d1d5db;
@@ -234,17 +234,37 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     
+    /* レスポンシブ対応：ヘッダーのみフォントサイズ調整 */
+    @media (max-width: 1200px) {
+      thead th {
+        font-size: 0.65rem;
+      }
+    }
+    
+    @media (max-width: 900px) {
+      thead th {
+        font-size: 0.6rem;
+      }
+    }
+    
+    @media (max-width: 600px) {
+      thead th {
+        font-size: 0.55rem;
+      }
+    }
+    
     thead th { 
       position: sticky; 
       top: 0; 
       background: #4f46e5; 
       color: white;
       font-weight: 600;
+      font-size: 0.7rem; /* ヘッダー行のフォントサイズをさらに小さく */
     }
     
     th, td { 
       border: 1px solid #e5e7eb; 
-      padding: 10px 12px; 
+      padding: 10px 12px; /* 元のサイズに戻す */
       font-variant-numeric: tabular-nums; 
       text-align: right; 
     }
@@ -862,34 +882,10 @@
       <!-- タイムライン結果セクション -->
       <div class="section" id="timelineResultsSection">
         <div class="output-section">
-          <h3 class="section-title">📊 タイムライン結果</h3>
+          <h3 class="section-title">詳細情報</h3>
           <div id="timelineOutput">
-            <div class="info-message">
-              左側にタイムラインを入力して「タイムライン生成」ボタンを押してください
-            </div>
+            <!-- JavaScript で空のテーブルが挿入されます -->
           </div>
-        </div>
-      </div>
-
-      <!-- 詳細情報アコーディオン -->
-      <div class="accordion">
-        <div class="accordion-header" onclick="toggleAccordion(this)">
-          🔍 詳細情報・デバッグ
-          <span class="accordion-toggle"></span>
-        </div>
-        <div class="accordion-content">
-          <div id="debugInfo"></div>
-        </div>
-      </div>
-
-      <!-- JSON出力アコーディオン -->
-      <div class="accordion">
-        <div class="accordion-header" onclick="toggleAccordion(this)">
-          📋 JSON出力
-          <span class="accordion-toggle"></span>
-        </div>
-        <div class="accordion-content">
-          <div id="jsonOutput"></div>
         </div>
       </div>
     </div>
@@ -1102,6 +1098,23 @@
     }
 
     /**
+     * confirmOverwriteCurrentInput - 現在の入力データの上書き確認
+     * @param {string} actionDescription - 実行する操作の説明
+     * @returns {boolean} ユーザーが続行を選択した場合はtrue
+     */
+    function confirmOverwriteCurrentInput(actionDescription) {
+      const currentInput = document.getElementById('timelineInput').value;
+      if (currentInput.trim()) {
+        const currentPreview = currentInput.substring(0, 50) + (currentInput.length > 50 ? '...' : '');
+        const confirmMessage = `現在のタイムライン入力データが${actionDescription}によって消去されます。\n` +
+                             `現在のデータ: ${currentPreview}\n\n` +
+                             `続行しますか？`;
+        return confirm(confirmMessage);
+      }
+      return true;
+    }
+
+    /**
      * loadFromSlot - スロット別localStorageからタイムラインデータを読み込み
      * @param {number} slotNumber - 読み込み元スロット番号（1-10）
      * 現在の入力データがある場合は上書き警告を表示
@@ -1115,15 +1128,8 @@
       }
       
       // 現在の入力データがある場合は上書き警告
-      const currentInput = document.getElementById('timelineInput').value;
-      if (currentInput.trim()) {
-        const currentPreview = currentInput.substring(0, 50) + (currentInput.length > 50 ? '...' : '');
-        const confirmMessage = `現在のタイムライン入力データが読み込みによって消去されます。\n` +
-                             `現在のデータ: ${currentPreview}\n\n` +
-                             `続行しますか？`;
-        if (!confirm(confirmMessage)) {
-          return;
-        }
+      if (!confirmOverwriteCurrentInput('読み込み')) {
+        return;
       }
       
       try {
@@ -1207,6 +1213,9 @@
         
         // 全スロットのプレビューを初期化
         updateAllSlotPreviews();
+        
+        // 空のタイムラインテーブルを表示
+        document.getElementById('timelineOutput').innerHTML = generateEmptyTimelineTable();
       }, 200); // 少し長めに待機してライブラリの読み込み完了を確保
     });
 
@@ -1490,11 +1499,9 @@
           const isAutoUpdate = true;
           await processTimeline(isAutoUpdate);
         } else {
-          // 入力が空の場合は結果をクリア
-          document.getElementById('timelineOutput').innerHTML = '<div class="info-message">タイムラインを入力してください</div>';
+          // 入力が空の場合は空のテーブルを表示
+          document.getElementById('timelineOutput').innerHTML = generateEmptyTimelineTable();
           document.getElementById('timelineSection').style.display = 'none';
-          document.getElementById('debugInfo').innerHTML = '';
-          document.getElementById('jsonOutput').innerHTML = '';
         }
       } catch (error) {
         console.warn('自動更新中にエラーが発生しました:', error);
@@ -1668,6 +1675,46 @@
       }
     }
 
+    /**
+     * generateTimelineTableHeader - タイムラインテーブルのヘッダーを生成
+     * @returns {string} テーブルヘッダーHTML
+     */
+    function generateTimelineTableHeader() {
+      return `<table>
+          <thead>
+            <tr>
+              <th>経過時間</th>
+              <th>フレーム</th>
+              <th>イベント名</th>
+              <th>使用コスト</th>
+              <th>残りコスト</th>
+              <th>あふれたコスト</th>
+              <th>残りコストポイント</th>
+              <th>総コスト回復力</th>
+            </tr>
+          </thead>
+          <tbody>`;
+    }
+
+    /**
+     * generateEmptyTimelineTable - 空のタイムラインテーブルを生成
+     * @returns {string} 空のテーブルHTML
+     */
+    function generateEmptyTimelineTable() {
+      return generateTimelineTableHeader() + `
+            <tr>
+              <td colspan="8" style="text-align: center; color: #6b7280; font-style: italic;">
+                タイムラインを入力して「タイムライン生成」ボタンを押してください
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div class="setting-comment">
+          コストポイント：内部的にはコスト管理は整数値で管理されていると想定します。1フレームごとに総コスト回復力と等しい数値を獲得しているとし、その蓄積された値をコストポイントと呼ぶことにします。300,000コストポイント ＝ 1コストです。
+        </div>`;
+    }
+
     // =============================================================================
     // 📊 表示・出力
     // =============================================================================
@@ -1708,21 +1755,7 @@
       const output = document.getElementById('timelineOutput');
       
       // 詳細イベント一覧テーブルの生成
-      let html = `<table>
-          <thead>
-            <tr>
-              <th>経過時間</th>
-              <th>フレーム</th>
-              <th>イベント名</th>
-              <th>使用コスト</th>
-              <th>残りコスト</th>
-              <th>あふれたコスト</th>
-              <th>残りコストポイント</th>
-              <th>総コスト回復力</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
+      let html = generateTimelineTableHeader();
 
       // 各イベントの詳細情報を表示
       for (const event of timelineJSON.timeline) {
@@ -1758,46 +1791,6 @@
           コストポイント：内部的にはコスト管理は整数値で管理されていると想定します。1フレームごとに総コスト回復力と等しい数値を獲得しているとし、その蓄積された値をコストポイントと呼ぶことにします。300,000コストポイント ＝ 1コストです。
         </div>
       `;
-
-      // 追加イベント（バフ等）の表示
-      if (timelineJSON.additional_events.length > 0) {
-        html += `
-          <h4>🎭 追加イベント（コスト回復バフ等）</h4>
-          <table>
-            <thead>
-              <tr>
-                <th>開始経過時間</th>
-                <th>終了経過時間</th>
-                <th>イベント名</th>
-                <th>継続時間</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        
-        // AI用指示：最終的にframesToSecondsがhtml内に入り込むのは望ましくない
-        // 可能であればいずれこの部分の処理をjsファイル内で行う
-        // ただしこの部分は必須ではないので、後回しにしても良い
-        for (const event of timelineJSON.additional_events) {
-          const startTime = window.Utilities.framesToSeconds(event.start_frame).toFixed(3);
-          const endTime = window.Utilities.framesToSeconds(event.end_frame).toFixed(3);
-          const duration = (event.duration / 1000).toFixed(3);
-          
-          html += `
-            <tr>
-              <td>${startTime}s</td>
-              <td>${endTime}s</td>
-              <td style="text-align: left;">${event.event_name}</td>
-              <td>${duration}s</td>
-            </tr>
-          `;
-        }
-
-        html += `
-            </tbody>
-          </table>
-        `;
-      }
 
       output.innerHTML = html;
     }
@@ -1893,9 +1886,7 @@
      */
     function clearAll() {
       document.getElementById('timelineInput').value = '';
-      document.getElementById('timelineOutput').innerHTML = '<div class="info-message">タイムラインをクリアしました</div>';
-      document.getElementById('debugInfo').innerHTML = '';
-      document.getElementById('jsonOutput').innerHTML = '';
+      document.getElementById('timelineOutput').innerHTML = generateEmptyTimelineTable();
       document.getElementById('timelineSection').style.display = 'none';
       currentTimelineJSON = null;
       currentInputJSON = null;
@@ -1912,6 +1903,11 @@
      * AI向け指示：サンプル内容はそのまま維持すること
      */
     function loadSampleTimeline(sampleNumber) {
+      // 現在の入力データがある場合は上書き警告
+      if (!confirmOverwriteCurrentInput('サンプル読み込み')) {
+        return;
+      }
+      
       let sample = '';
       
       switch(sampleNumber) {
