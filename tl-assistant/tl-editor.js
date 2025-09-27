@@ -176,8 +176,8 @@ const COST_SETTINGS = {
  */
 const COST_RECOVERY_INCREASE_PATTERN = /コスト回復力.*(?:増|上昇)/;
 const COST_RECOVERY_DECREASE_PATTERN = /コスト回復力.*(?:減|減少|低下)/;
-// ここのパラメータは一部ユーザーからの入力により変更されるが、
-// その処理はconfigがsettingsの情報を読み込む部分で行われる
+const BOSS_GEBURAH_PATTERN = /(ボス|boss).*?(ゲブラ|Geburah)/i; // ボス or bossの後にゲブラ or Geburahを含むパターン（大文字小文字区別なし）
+
 
 
 // loadBuffData関数は削除されました - TL-assistant.htmlで独自実装されています
@@ -338,9 +338,15 @@ function findMostRecentAdditionalEvent(event_type, current_frame, additional_eve
  * @param {number} current_frame - 現在のフレーム
  * @param {boolean} ss_enabled - コスト回復SSが有効かどうか
  * @param {number} active_students - 現在の生徒数（デフォルト6）
+ * @param {boolean} is_boss_geburah - ゲブラボス戦かどうか（デフォルト false）
  * @returns {number} 総コスト回復量
  */
-function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled = false, active_students = 6) {
+function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled = false, active_students = 6, is_boss_geburah = false) {
+  if (current_frame < 60) {
+    // 2秒（60フレーム）未満ではコスト回復は発生しない
+    return 0;
+  }
+  
   // 有効なバフを検索
   const active_buffs = [];
   const global_buffs = []; // buff_target が "NA" のバフ（全体への追加回復）
@@ -373,6 +379,49 @@ function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled
   
   const base_recovery = 700; // 基礎コスト回復値
   const cost_recovery_ss_multiplier = 0.2029; // SS効果の係数
+  const geburah_striker_bonus = 0.25; // ゲブラ戦でのストライカー追加倍率
+  
+  // ストライカー/スペシャル生徒の定義（既存バフがある生徒を含む）
+  const striker_students = new Set(['水着ホシノ', 'セイア', 'チェリノ', 'カノエ']);
+  const special_students = new Set(); // 現在は空集合
+  
+  // active_buffsからtargetの集合を取得
+  const active_targets = new Set(active_buffs.map(buff => buff.buff_target));
+  
+  // ストライカー生徒を4人になるように追加
+  const all_striker_students = new Set(striker_students);
+  const existing_strikers = [...active_targets].filter(target => striker_students.has(target));
+  const leftover_targets = [...active_targets].filter(target => 
+    !striker_students.has(target) && !special_students.has(target));
+  
+  // leftoverをストライカーに追加
+  for (const target of leftover_targets) {
+    all_striker_students.add(target);
+  }
+  
+  // ストライカーが4人未満の場合、「ストライカー○」で補完
+  let striker_count = 4;
+  while (all_striker_students.size < 4) {
+    const striker_name = `ストライカー${striker_count}`;
+    if (!all_striker_students.has(striker_name)) {
+      all_striker_students.add(striker_name);
+    }
+    striker_count--;
+  }
+  
+  // スペシャル生徒を2人になるように追加
+  const all_special_students = new Set(special_students);
+  const existing_specials = [...active_targets].filter(target => special_students.has(target));
+  
+  // スペシャルが2人未満の場合、「スペシャル生徒○」で補完
+  let special_count = 2;
+  while (all_special_students.size < 2) {
+    const special_name = `スペシャル生徒${special_count}`;
+    if (!all_special_students.has(special_name)) {
+      all_special_students.add(special_name);
+    }
+    special_count--;
+  }
   
   let total_cost_recovery = 0;
   
@@ -382,23 +431,40 @@ function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled
     all_student_buff_total += buff.buff_amount;
   }
   
-  // バフがかかっている生徒の分を計算（個別バフ + 全生徒バフ）
-  for (const buff of active_buffs) {
-    const buffed_base = base_recovery + buff.buff_amount + all_student_buff_total;
-    const buffed_actual = ss_enabled ? 
-      Math.round(buffed_base * (1 + cost_recovery_ss_multiplier)) : 
-      buffed_base;
-    total_cost_recovery += buffed_actual;
+  // 各ストライカー生徒のコスト回復力を計算
+  for (const student of all_striker_students) {
+    let student_recovery = base_recovery + all_student_buff_total;
+    
+    // この生徒に関連するバフをすべて探して追加
+    for (const buff of active_buffs) {
+      if (buff.buff_target === student) {
+        student_recovery += buff.buff_amount;
+      }
+    }
+    
+    // ロール倍率の計算（ストライカー）
+    const role_multiplier = 1 + is_boss_geburah * geburah_striker_bonus + ss_enabled * cost_recovery_ss_multiplier;
+    
+    const final_recovery = Math.round(student_recovery * role_multiplier);
+    total_cost_recovery += final_recovery;
   }
   
-  // バフがかかっていない生徒の分を計算（基本 + 全生徒バフ）
-  const unbuffed_students = active_students - active_buffs.length;
-  if (unbuffed_students > 0) {
-    const unbuffed_base = base_recovery + all_student_buff_total;
-    const unbuffed_actual = ss_enabled ? 
-      Math.round(unbuffed_base * (1 + cost_recovery_ss_multiplier)) : 
-      unbuffed_base;
-    total_cost_recovery += unbuffed_students * unbuffed_actual;
+  // 各スペシャル生徒のコスト回復力を計算
+  for (const student of all_special_students) {
+    let student_recovery = base_recovery + all_student_buff_total;
+    
+    // この生徒に関連するバフをすべて探して追加
+    for (const buff of active_buffs) {
+      if (buff.buff_target === student) {
+        student_recovery += buff.buff_amount;
+      }
+    }
+    
+    // ロール倍率の計算（スペシャル：ゲブラ戦でも等倍）
+    const role_multiplier = 1 + ss_enabled * cost_recovery_ss_multiplier;
+    
+    const final_recovery = Math.round(student_recovery * role_multiplier);
+    total_cost_recovery += final_recovery;
   }
   
   // グローバルバフ（NA）の追加回復量を計算
@@ -694,6 +760,9 @@ class TimelineProcessor {
     // Step 1.d. ラベルマップの初期化
     this.label_map = InitializeLabelMap(input_json);
 
+    // Step 1.d.1. ボス関連プロパティの初期化
+    this.is_boss_geburah = false; // ゲブラボスかどうかのフラグ（デフォルト: false）
+
     // Step 1.e. timeline_jsonの初期化
     // Step 1.e.1. ひな形の作成
     this.timeline_json = {
@@ -860,10 +929,28 @@ class TimelineProcessor {
     // 2) イベント名に「コスト回復力増加」または「コスト回復力減少」が含まれているかチェック
     const isIncreasePattern = COST_RECOVERY_INCREASE_PATTERN.test(original_event.event_name);
     const isDecreasePattern = COST_RECOVERY_DECREASE_PATTERN.test(original_event.event_name);
-    
-    if (isIncreasePattern || isDecreasePattern) {
+
+    // 3) 成形済みオリジナルの入力にボスがゲブラであることに関するパターンが含まれているかチェック
+    const isBossGeburahPattern = BOSS_GEBURAH_PATTERN.test(original_event.normalized_line);
+
+    if (isBossGeburahPattern) {
+      console.log('processSpecialCommand: 特殊コマンドが検出されました！ ゲブラボス戦フラグを設定します');
+      this.is_boss_geburah = true;
+      original_event.is_special_command = true;
+
+      // ゲブラ戦用のバフイベントを追加（durationは実質無限）
+      // buff.jsからgeburahテンプレートを取得
+      const geburah_event_skeleton = window.BUFF_DATA.cost_recovery_buffs.geburah;
+
+      // フレーム数を計算（BATTLE_STARTの60フレームから開始）
+      const geburah_buff_event = this.createBuffEvent(geburah_event_skeleton, 60, this.settings);
+      this.timeline_json.additional_events.push(geburah_buff_event);
+      console.log('ゲブラ戦用バフイベントをadditional_eventsに追加しました:', geburah_buff_event);
+
+      return;
+    } else if (isIncreasePattern || isDecreasePattern) {
       const commandType = isIncreasePattern ? 'increase' : 'decrease';
-      console.log(`特殊コマンドが検出されました！ タイプ: ${commandType}`);
+      console.log(`processSpecialCommand: 特殊コマンドが検出されました！ タイプ: ${commandType}`);
       // 特殊イベント処理フェーズに入る
       original_event.is_special_command = true;
       let duration = original_event.duration;
@@ -1253,11 +1340,9 @@ class TimelineProcessor {
       console.log(`セイア固有2設定: ${seia_koyuu2}, 選択されたduration_frames: ${duration_frames}`);
     }
     
-    const end_frame = actual_start_frame + duration_frames;
-    
     return {
       start_frame: actual_start_frame,
-      end_frame: end_frame,
+      end_frame: actual_start_frame + duration_frames,
       event_name: buff_info.buff_name,
       buff_target: buff_info.buff_target, // バフターゲットを追加（重複チェック用）
       duration: (duration_frames / 30) * 1000, // フレームをミリ秒に変換
@@ -1299,7 +1384,9 @@ class TimelineProcessor {
       let base_event_name = event.event_name || 'バフイベント';
       let event_suffix = '';
       if (event.event_type === 'start') {
-        event_suffix = '開始';
+        if (!base_event_name.includes('知性の根源')) {
+          event_suffix = '開始';
+        }
       } else if (event.event_type === 'end') {
         event_suffix = '終了';
       }
@@ -1361,7 +1448,8 @@ class TimelineProcessor {
       this.timeline_json.additional_events, 
       this.state.current_frame, 
       this.ss_enabled, // SS設定を正しく渡す
-      this.state.remaining_students
+      this.state.remaining_students,
+      this.is_boss_geburah // ゲブラフラグを追加
     );
 
     // 6. イベントの最終フォーマットと追加

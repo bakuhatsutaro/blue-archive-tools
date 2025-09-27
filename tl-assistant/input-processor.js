@@ -464,7 +464,8 @@ function createInputJSON(input_original, settings = {}) {
       target: endingResult.target,      // 特殊コマンド用のターゲット
       ending: ending, // オリジナルのending文字列を保存
       ending_processed: endingResult.remaining_ending, // 加工後の文字列も保存
-      original_line: rawLine, // デバッグ用
+      original_line: rawLine, // オリジナルの行を格納
+      normalized_line: normalizedLine, // 整形済みの行を格納
       note: [] // エラーや警告メッセージを格納する配列として初期化
     };
 

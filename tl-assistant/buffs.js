@@ -64,6 +64,16 @@ window.BUFF_DATA = {
       "offset_frames": 0,
       "detection_patterns": []
     },
+    "geburah": {
+      "event_type": "NA",
+      "buff_name": "ゲブラPS知性の根源",
+      "buff_target": null,
+      "buff_amount": 0,
+      "buff_value_type": 0,
+      "duration_frames": 10000000,
+      "offset_frames": 0,
+      "detection_patterns":[]
+    },
     "general": {
       "event_type": "cost_recovery_buff",
       "buff_name": "コスト回復力増加",
