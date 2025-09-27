@@ -385,16 +385,26 @@ function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled
   const striker_students = new Set(['水着ホシノ', 'セイア', 'チェリノ', 'カノエ']);
   const special_students = new Set(); // 現在は空集合
   
-  // active_buffsからtargetの集合を取得
-  const active_targets = new Set(active_buffs.map(buff => buff.buff_target));
+  // active_buffsからtargetの集合を取得（nullや空文字を除外）
+  const active_targets = new Set(
+    active_buffs
+      .map(buff => buff.buff_target)
+      .filter(target => target && target !== "NA" && target !== "null")
+  );
   
-  // ストライカー生徒を4人になるように追加
-  const all_striker_students = new Set(striker_students);
+  // ストライカー生徒の交集合（実際にバフを持つストライカーのみ）
+  const all_striker_students = new Set();
   const existing_strikers = [...active_targets].filter(target => striker_students.has(target));
+  
+  // 実際にバフを持つストライカーのみを追加
+  for (const striker of existing_strikers) {
+    all_striker_students.add(striker);
+  }
+  
+  // 残りの有効なターゲット（ストライカーでもスペシャルでもない生徒）をストライカーに追加
   const leftover_targets = [...active_targets].filter(target => 
     !striker_students.has(target) && !special_students.has(target));
   
-  // leftoverをストライカーに追加
   for (const target of leftover_targets) {
     all_striker_students.add(target);
   }
@@ -446,6 +456,7 @@ function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled
     const role_multiplier = 1 + is_boss_geburah * geburah_striker_bonus + ss_enabled * cost_recovery_ss_multiplier;
     
     const final_recovery = Math.round(student_recovery * role_multiplier);
+    console.log(`calculateTotalCostRecovery: ストライカー ${student} のコスト回復力: ${final_recovery}`);
     total_cost_recovery += final_recovery;
   }
   
@@ -464,6 +475,7 @@ function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled
     const role_multiplier = 1 + ss_enabled * cost_recovery_ss_multiplier;
     
     const final_recovery = Math.round(student_recovery * role_multiplier);
+    console.log(`calculateTotalCostRecovery: スペシャル生徒 ${student} のコスト回復力: ${final_recovery}`);
     total_cost_recovery += final_recovery;
   }
   
@@ -1451,6 +1463,7 @@ class TimelineProcessor {
       this.state.remaining_students,
       this.is_boss_geburah // ゲブラフラグを追加
     );
+    console.log(`フレーム${this.state.current_frame}でのtotal_cost_recovery更新: ${this.state.total_cost_recovery}`);
 
     // 6. イベントの最終フォーマットと追加
     formatted_event.current_cost_display_only = this.state.remaining_cost_points / COST_POINT_UNIT;
