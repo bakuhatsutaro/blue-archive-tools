@@ -177,7 +177,7 @@
     let textLines = [];
     
     // HTML形式の出力開始
-    let htmlOutput = '' //'<h3 style="margin: 0 0 12px 0; font-size: 1.1rem;">タイムライン（処理済み）</h3>';
+    let htmlOutput = ''; //'<h3 style="margin: 0 0 12px 0; font-size: 1.1rem;">タイムライン（処理済み）</h3>';
     htmlOutput += '<div style="margin: 0 0 8px 0; font-size: 0.9rem; color: #666;">';
     htmlOutput += '<span style="color: blue;">■</span> 残りコスト　';
     htmlOutput += '<span style="color: red;">■</span> 溢れたコスト';
