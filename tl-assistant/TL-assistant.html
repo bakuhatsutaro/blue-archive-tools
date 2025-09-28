@@ -15,7 +15,7 @@
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans JP", sans-serif; 
       margin: 0; 
       padding: 24px; 
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: #f1f5f9;
       min-height: 100vh;
     }
     
@@ -29,7 +29,7 @@
     }
     
     .header {
-      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      background: rgb(72, 134, 233);
       color: white;
       padding: 24px;
       text-align: center;
@@ -67,7 +67,7 @@
       padding: 4px 8px; 
       border-radius: 8px; 
       border: 2px solid transparent; 
-      background: #4f46e5; 
+      background: #9092ce; 
       color: white;
       cursor: pointer; 
       font-weight: 500;
@@ -75,7 +75,7 @@
     }
     
     .btn:hover { 
-      background: #4338ca; 
+      background: #00adcc; 
       transform: translateY(-1px);
     }
     
@@ -643,7 +643,7 @@
       <!-- 記入方法 -->
       <div class="accordion">
         <div class="accordion-header" onclick="toggleAccordion(this)">
-          📖 記入方法
+          📖 記入方法（クリック・タップすると詳細表示）
           <span class="accordion-toggle"></span>
         </div>
         <div class="accordion-content">
@@ -685,14 +685,7 @@
           </ul>
         </div>
       </div>
-
-      <!-- 操作ボタン -->
-      <div class="controls">
-        <button class="btn" onclick="triggerAutoUpdate()">🚀 タイムライン生成</button>
-        <button class="btn secondary" onclick="clearAll()">🗑️ クリア</button>
-        <button class="btn" id="autoUpdateToggle" onclick="toggleAutoUpdate()">🔄 自動更新: ON</button>
-      </div>
-      
+     
       <!-- セーブ/ロードボタン -->
       <div class="save-slot-section" style="margin-top: 5px;">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start;">
@@ -807,7 +800,14 @@
         <!-- 入力セクション -->
         <div class="timeline-input-section">
           <div class="input-section">
-            <h3 class="section-title">📝 タイムライン入力</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h3 class="section-title" style="margin: 0; margin-right: 16px;">📝 タイムライン入力</h3>
+                <button class="btn primary" id="generateButton" onclick="manualGenerate()" style="font-size: 13px; display: none;">🚀 生成</button>
+                <button class="btn" id="autoUpdateToggle" onclick="toggleAutoUpdate()" style="font-size: 13px;">🔄 自動更新: ON</button>
+              </div>
+              <button class="btn danger" onclick="clearAll()" style="font-size: 13px;">🗑️ クリア</button>
+            </div>
             <textarea id="timelineInput" placeholder="例:
 ！行頭に「！」を書くとコメント行になり無視されます
 !全角でも半角でもいいですが、絵文字はダメです❗
@@ -846,7 +846,7 @@
         <!-- 出力セクション -->
         <div class="timeline-output-section">
           <div class="output-section">
-            <h3 class="section-title">� タイムライン出力</h3>
+            <h3 class="section-title">📊 タイムライン出力</h3>
             
             <!-- タイムライン表示セクション -->
             <div class="section" id="timelineSection" style="display: none;">
@@ -1081,7 +1081,7 @@
       };
       
       localStorage.setItem(`tl-assistant-slot-${slotNumber}`, JSON.stringify(saveData));
-      showMessage(`スロット${slotNumber}に保存しました（設定も含む）`, 'success');
+      // セーブ完了メッセージは削除
       
       // プレビューを更新
       updateSlotPreview(slotNumber);
@@ -1132,9 +1132,9 @@
           // 設定UIを更新
           updateActiveButtons();
           saveSettings(); // 現在の設定を保存
-          showMessage(`スロット${slotNumber}からデータと設定を読み込みました (保存日時: ${saveData.timestamp})`, 'success');
+          // ロード完了メッセージは削除
         } else {
-          showMessage(`スロット${slotNumber}からデータを読み込みました (保存日時: ${saveData.timestamp})`, 'success');
+          // ロード完了メッセージは削除
         }
         
         // 自動更新を使用して処理を実行
@@ -1629,9 +1629,7 @@
             }
           };
           console.log('currentInputJSON:', currentInputJSON);
-          if (!isAutoUpdate) {
-            showMessage('入力処理完了', 'success');
-          }
+          // 入力処理完了メッセージは削除
         } catch (inputError) {
           throw new Error(`入力処理エラー: ${inputError.message}`);
         }
@@ -1645,9 +1643,7 @@
           console.log('生成されたtimeline_json:', currentTimelineJSON);
           console.log('additional_events:', currentTimelineJSON.additional_events);
           
-          if (!isAutoUpdate) {
-            showMessage('タイムライン生成完了', 'success');
-          }
+          // 手動生成時のメッセージ表示は削除
         } catch (timelineError) {
           throw new Error(`タイムライン生成エラー: ${timelineError.message}`);
         }
@@ -1795,6 +1791,11 @@
     function displayDebugInfo(inputJSON, timelineJSON) {
       const debug = document.getElementById('debugInfo');
       
+      // デバッグ要素が存在しない場合は処理をスキップ
+      if (!debug) {
+        return;
+      }
+      
       let html = `
         <h4>🔧 入力JSON構造</h4>
         <div class="json-output">${JSON.stringify(inputJSON, null, 2)}</div>
@@ -1819,6 +1820,12 @@
      */
     function displayJSONOutput(timelineJSON) {
       const output = document.getElementById('jsonOutput');
+      
+      // JSON出力要素が存在しない場合は処理をスキップ
+      if (!output) {
+        return;
+      }
+      
       output.innerHTML = `
         <div class="json-output">${JSON.stringify(timelineJSON, null, 2)}</div>
         <button class="btn" onclick="copyToClipboard()" style="margin-top: 12px;">📋 クリップボードにコピー</button>
@@ -1875,14 +1882,16 @@
      * 入力、出力、グローバル変数、タイマーを全てリセットする
      */
     function clearAll() {
-      document.getElementById('timelineInput').value = '';
-      document.getElementById('timelineOutput').innerHTML = generateEmptyTimelineTable();
-      document.getElementById('timelineSection').style.display = 'none';
-      currentTimelineJSON = null;
-      currentInputJSON = null;
-      
-      // タイマーもクリア
-      clearTimeout(autoUpdateTimer);
+      if (confirmOverwriteCurrentInput('クリア')) {
+        document.getElementById('timelineInput').value = '';
+        document.getElementById('timelineOutput').innerHTML = generateEmptyTimelineTable();
+        document.getElementById('timelineSection').style.display = 'none';
+        currentTimelineJSON = null;
+        currentInputJSON = null;
+        
+        // タイマーもクリア
+        clearTimeout(autoUpdateTimer);
+      }
     }
 
     /**
@@ -2062,7 +2071,7 @@ AUTO アイドルマリー 2
       
       if (sample) {
         document.getElementById('timelineInput').value = sample;
-        showMessage(`サンプル${sampleNumber}を読み込みました`, 'success');
+        // サンプル読み込みメッセージは削除
         
         // 自動更新を使用して処理を実行
         triggerAutoUpdate();
@@ -2076,11 +2085,12 @@ AUTO アイドルマリー 2
     function toggleAutoUpdate() {
       autoUpdateEnabled = !autoUpdateEnabled;
       const button = document.getElementById('autoUpdateToggle');
+      const generateButton = document.getElementById('generateButton');
       
       if (autoUpdateEnabled) {
         button.textContent = '🔄 自動更新: ON';
         button.classList.add('active');
-        showMessage('自動更新を有効にしました', 'success');
+        generateButton.style.display = 'none';  // 自動更新ON時は生成ボタンを非表示
         
         // 自動更新を有効にした時に現在の内容で即座に更新
         const input = document.getElementById('timelineInput').value.trim();
@@ -2090,10 +2100,23 @@ AUTO アイドルマリー 2
       } else {
         button.textContent = '🔄 自動更新: OFF';
         button.classList.remove('active');
-        showMessage('自動更新を無効にしました', 'info');
+        generateButton.style.display = 'inline-block';  // 自動更新OFF時は生成ボタンを表示
         
         // タイマーをクリア
         clearTimeout(autoUpdateTimer);
+      }
+    }
+
+    /**
+     * manualGenerate - 手動でタイムライン生成を実行
+     * 自動更新がOFFの時に使用される手動生成関数
+     */
+    async function manualGenerate() {
+      try {
+        await processTimeline(false); // 手動生成として実行
+      } catch (error) {
+        console.error('Manual generation error:', error);
+        showMessage('タイムライン生成中にエラーが発生しました', 'error');
       }
     }
 
