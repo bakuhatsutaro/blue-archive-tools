@@ -450,7 +450,7 @@
       background: #f8fafc;
       border-radius: 12px;
       padding: 12px; /* 16px から 12px に縮小 */
-      margin: 0px 0; /* 16px から 8px に縮小 */
+      margin: 8px 0 16px 0; /* 上8px、下16pxに調整 */
       border: 2px solid #e2e8f0;
     }
     
@@ -522,6 +522,11 @@
         max-width: none;
         flex: 1 1 auto;
         margin-bottom: 8px;
+      }
+      
+      /* 狭い画面では追加セーブスロットのマージンを除去 */
+      #additionalSlotsContainer > div {
+        margin-left: 0 !important;
       }
     }
   </style>
@@ -687,109 +692,105 @@
       </div>
      
       <!-- セーブ/ロードボタン -->
-      <div class="save-slot-section" style="margin-top: 5px;">
+      <div class="save-slot-section" style="margin-bottom: 5px;">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start;">
-          <span style="font-weight: bold; margin-right: 10px; line-height: 32px;">💾 セーブスロット:</span>
-          
-          <!-- 基本セーブスロット（1-2） -->
-          <div class="save-slot-item" data-slot="1">
-            <div class="save-slot-buttons">
-              <button class="btn secondary save-btn" onclick="saveToSlot(1)">保存1</button>
-              <button class="btn secondary load-btn" onclick="loadFromSlot(1)">読込1</button>
-            </div>
-            <div class="save-slot-preview" id="slot-preview-1">（空のデータスロット）</div>
+          <div style="flex: 0 0 180px; font-weight: bold; line-height: 32px;">
+            💾 セーブスロット:
           </div>
-          
-          <div class="save-slot-item" data-slot="2">
-            <div class="save-slot-buttons">
-              <button class="btn secondary save-btn" onclick="saveToSlot(2)">保存2</button>
-              <button class="btn secondary load-btn" onclick="loadFromSlot(2)">読込2</button>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; flex: 1;">
+            <!-- 基本セーブスロット（1-2） -->
+            <div class="save-slot-item" data-slot="1">
+              <div class="save-slot-buttons">
+                <button class="btn secondary save-btn" onclick="saveToSlot(1)">保存1</button>
+                <button class="btn secondary load-btn" onclick="loadFromSlot(1)">読込1</button>
+              </div>
+              <div class="save-slot-preview" id="slot-preview-1">（空のデータスロット）</div>
             </div>
-            <div class="save-slot-preview" id="slot-preview-2">（空のデータスロット）</div>
+            
+            <div class="save-slot-item" data-slot="2">
+              <div class="save-slot-buttons">
+                <button class="btn secondary save-btn" onclick="saveToSlot(2)">保存2</button>
+                <button class="btn secondary load-btn" onclick="loadFromSlot(2)">読込2</button>
+              </div>
+              <div class="save-slot-preview" id="slot-preview-2">（空のデータスロット）</div>
+            </div>
+            
+            <!-- 追加セーブスロット表示ボタン -->
+            <div style="margin-left: auto;">
+              <button class="btn secondary" id="toggleAdditionalSlots" onclick="toggleAdditionalSlots()">📁 追加セーブスロット表示</button>
+            </div>
           </div>
-          <!-- 改行用の見えない要素 -->
-          <div style="width: 100%; height: 0; flex-basis: 100%;"></div>
         </div>
         
-        <!-- 追加セーブスロット（3-10）アコーディオン -->
-        <div class="accordion" style="margin-top: 10px;">
-          <div class="accordion-header" onclick="toggleAccordion(this)">
+        <!-- 追加セーブスロット（3-10） -->
+        <div id="additionalSlotsContainer" style="margin-top: 12px; margin-bottom: 0pt; display: none;">
+          <!---
+          <div style="font-weight: bold; margin-bottom: 10px; color: #555;">
             📁 追加セーブスロット
-            <span class="accordion-toggle"></span>
-          </div>
-          <div class="accordion-content">
-            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start;">
-              <div class="save-slot-item compact" data-slot="3">
-                <div class="save-slot-buttons">
-                  <button class="btn secondary save-btn" onclick="saveToSlot(3)">保存3</button>
-                  <button class="btn secondary load-btn" onclick="loadFromSlot(3)">読込3</button>
-                </div>
-                <div class="save-slot-preview" id="slot-preview-3">（空のデータスロット）</div>
+          </div> -->
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; margin-left: 190px;">
+            <div class="save-slot-item compact" data-slot="3">
+              <div class="save-slot-buttons">
+                <button class="btn secondary save-btn" onclick="saveToSlot(3)">保存3</button>
+                <button class="btn secondary load-btn" onclick="loadFromSlot(3)">読込3</button>
               </div>
-              
-              <div class="save-slot-item compact" data-slot="4">
-                <div class="save-slot-buttons">
-                  <button class="btn secondary save-btn" onclick="saveToSlot(4)">保存4</button>
-                  <button class="btn secondary load-btn" onclick="loadFromSlot(4)">読込4</button>
-                </div>
-                <div class="save-slot-preview" id="slot-preview-4">（空のデータスロット）</div>
+              <div class="save-slot-preview" id="slot-preview-3">（空のデータスロット）</div>
+            </div>
+            
+            <div class="save-slot-item compact" data-slot="4">
+              <div class="save-slot-buttons">
+                <button class="btn secondary save-btn" onclick="saveToSlot(4)">保存4</button>
+                <button class="btn secondary load-btn" onclick="loadFromSlot(4)">読込4</button>
               </div>
-              <!-- 改行用の見えない要素 -->
-              <div style="width: 100%; height: 0; flex-basis: 100%;"></div>
-              
-              <div class="save-slot-item compact" data-slot="5">
-                <div class="save-slot-buttons">
-                  <button class="btn secondary save-btn" onclick="saveToSlot(5)">保存5</button>
-                  <button class="btn secondary load-btn" onclick="loadFromSlot(5)">読込5</button>
-                </div>
-                <div class="save-slot-preview" id="slot-preview-5">（空のデータスロット）</div>
+              <div class="save-slot-preview" id="slot-preview-4">（空のデータスロット）</div>
+            </div>
+            
+            <div class="save-slot-item compact" data-slot="5">
+              <div class="save-slot-buttons">
+                <button class="btn secondary save-btn" onclick="saveToSlot(5)">保存5</button>
+                <button class="btn secondary load-btn" onclick="loadFromSlot(5)">読込5</button>
               </div>
-              
-              <div class="save-slot-item compact" data-slot="6">
-                <div class="save-slot-buttons">
-                  <button class="btn secondary save-btn" onclick="saveToSlot(6)">保存6</button>
-                  <button class="btn secondary load-btn" onclick="loadFromSlot(6)">読込6</button>
-                </div>
-                <div class="save-slot-preview" id="slot-preview-6">（空のデータスロット）</div>
+              <div class="save-slot-preview" id="slot-preview-5">（空のデータスロット）</div>
+            </div>
+            
+            <div class="save-slot-item compact" data-slot="6">
+              <div class="save-slot-buttons">
+                <button class="btn secondary save-btn" onclick="saveToSlot(6)">保存6</button>
+                <button class="btn secondary load-btn" onclick="loadFromSlot(6)">読込6</button>
               </div>
-              <!-- 改行用の見えない要素 -->
-              <div style="width: 100%; height: 0; flex-basis: 100%;"></div>
-              
-              <div class="save-slot-item compact" data-slot="7">
-                <div class="save-slot-buttons">
-                  <button class="btn secondary save-btn" onclick="saveToSlot(7)">保存7</button>
-                  <button class="btn secondary load-btn" onclick="loadFromSlot(7)">読込7</button>
-                </div>
-                <div class="save-slot-preview" id="slot-preview-7">（空のデータスロット）</div>
+              <div class="save-slot-preview" id="slot-preview-6">（空のデータスロット）</div>
+            </div>
+            
+            <div class="save-slot-item compact" data-slot="7">
+              <div class="save-slot-buttons">
+                <button class="btn secondary save-btn" onclick="saveToSlot(7)">保存7</button>
+                <button class="btn secondary load-btn" onclick="loadFromSlot(7)">読込7</button>
               </div>
-              
-              <div class="save-slot-item compact" data-slot="8">
-                <div class="save-slot-buttons">
-                  <button class="btn secondary save-btn" onclick="saveToSlot(8)">保存8</button>
-                  <button class="btn secondary load-btn" onclick="loadFromSlot(8)">読込8</button>
-                </div>
-                <div class="save-slot-preview" id="slot-preview-8">（空のデータスロット）</div>
+              <div class="save-slot-preview" id="slot-preview-7">（空のデータスロット）</div>
+            </div>
+            
+            <div class="save-slot-item compact" data-slot="8">
+              <div class="save-slot-buttons">
+                <button class="btn secondary save-btn" onclick="saveToSlot(8)">保存8</button>
+                <button class="btn secondary load-btn" onclick="loadFromSlot(8)">読込8</button>
               </div>
-              <!-- 改行用の見えない要素 -->
-              <div style="width: 100%; height: 0; flex-basis: 100%;"></div>
-              
-              <div class="save-slot-item compact" data-slot="9">
-                <div class="save-slot-buttons">
-                  <button class="btn secondary save-btn" onclick="saveToSlot(9)">保存9</button>
-                  <button class="btn secondary load-btn" onclick="loadFromSlot(9)">読込9</button>
-                </div>
-                <div class="save-slot-preview" id="slot-preview-9">（空のデータスロット）</div>
+              <div class="save-slot-preview" id="slot-preview-8">（空のデータスロット）</div>
+            </div>
+            
+            <div class="save-slot-item compact" data-slot="9">
+              <div class="save-slot-buttons">
+                <button class="btn secondary save-btn" onclick="saveToSlot(9)">保存9</button>
+                <button class="btn secondary load-btn" onclick="loadFromSlot(9)">読込9</button>
               </div>
-              
-              <div class="save-slot-item compact" data-slot="10">
-                <div class="save-slot-buttons">
-                  <button class="btn secondary save-btn" onclick="saveToSlot(10)">保存10</button>
-                  <button class="btn secondary load-btn" onclick="loadFromSlot(10)">読込10</button>
-                </div>
-                <div class="save-slot-preview" id="slot-preview-10">（空のデータスロット）</div>
+              <div class="save-slot-preview" id="slot-preview-9">（空のデータスロット）</div>
+            </div>
+            
+            <div class="save-slot-item compact" data-slot="10">
+              <div class="save-slot-buttons">
+                <button class="btn secondary save-btn" onclick="saveToSlot(10)">保存10</button>
+                <button class="btn secondary load-btn" onclick="loadFromSlot(10)">読込10</button>
               </div>
-              <!-- 改行用の見えない要素 -->
-              <div style="width: 100%; height: 0; flex-basis: 100%;"></div>
+              <div class="save-slot-preview" id="slot-preview-10">（空のデータスロット）</div>
             </div>
           </div>
         </div>
@@ -1875,6 +1876,22 @@
     function toggleAccordion(header) {
       const accordion = header.parentElement;
       accordion.classList.toggle('open');
+    }
+
+    /**
+     * toggleAdditionalSlots - 追加セーブスロットの表示/非表示切り替え
+     */
+    function toggleAdditionalSlots() {
+      const container = document.getElementById('additionalSlotsContainer');
+      const button = document.getElementById('toggleAdditionalSlots');
+      
+      if (container.style.display === 'none') {
+        container.style.display = 'block';
+        button.textContent = '📁 追加セーブスロット非表示';
+      } else {
+        container.style.display = 'none';
+        button.textContent = '📁 追加セーブスロット表示';
+      }
     }
 
     /**
