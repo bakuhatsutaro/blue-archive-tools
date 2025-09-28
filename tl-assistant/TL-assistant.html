@@ -29,7 +29,7 @@
     }
     
     .header {
-      background: rgb(72, 134, 233);
+      background: #37417e;  /* ← ここでヘッダーの背景色を設定 */
       color: white;
       padding: 24px;
       text-align: center;
@@ -47,6 +47,17 @@
       margin: 0;
     }
     
+    /* リンクスタイル */
+    a {
+      color: #cbe5ff; /* 淡い青みがかった白 */
+      font-weight: bold; /* 太字 */
+    }
+    
+    a:hover {
+      color: #78bcff; /* ホバー時はより明るい青 */
+      text-decoration: underline; /* ホバー時に下線を表示 */
+    }
+    
     .main-content {
       padding: 24px;
     }
@@ -56,7 +67,7 @@
       gap: 12px; 
       flex-wrap: wrap; 
       align-items: center; 
-      <!-- 縦幅の調整はmarginとpaddingを調節することで行います -->
+      /* 縦幅の調整はmarginとpaddingを調節することで行います */
       margin: 2px 0; 
       padding: 4px;
       background: #f8fafc;
@@ -256,8 +267,8 @@
     thead th { 
       position: sticky; 
       top: 0; 
-      background: #4f46e5; 
-      color: white;
+      background: #dce2ff; 
+      color: black;
       font-weight: 600;
       font-size: 0.7rem; /* ヘッダー行のフォントサイズをさらに小さく */
     }
@@ -535,7 +546,8 @@
   <div class="container">
     <div class="header">
       <h1>ブルーアーカイブ TL Assistant</h1>
-      <p class="subtitle">【超重要】未完成 - おかしいことあったら教えてください！！</p>
+      <p class="subtitle"><a href="https://note.com/bakub/n/n352de7d6d4de">取扱説明書的なnote</a><br>
+        <a href="https://x.com/atsubakutaro">作者</a>への要望はDMか<a href="https://discord.com/invite/nvAh835Pe2">Discord</a>推奨、<a href="https://peing.net/ja/bakuhatsu_taro">匿名の質問箱</a>も用意しましたがたまにしか見ないかも</p>
     </div>
     
     <div class="main-content">
