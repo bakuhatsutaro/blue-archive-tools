@@ -586,6 +586,13 @@
             <span id="currentSeia" class="muted"></span>
           </div>
 
+          <div class="controls">
+            <span>マジカルスズミ固有2：</span>
+            <button class="btn" data-magical-suzumi="yes">あり</button>
+            <button class="btn" data-magical-suzumi="no">なし</button>
+            <span id="currentMagicalSuzumi" class="muted"></span>
+          </div>
+
           <div class="controls compact">
             <span>カノエ：</span>
             <button class="btn small" data-kanoe="0">なし</button>
@@ -917,6 +924,7 @@
       time_display_format: 'backward',      // 時間表示形式（backward/forward）
       modifier_always_forward: 'yes',       // +/-の解釈方向
       seia_koyuu2: 'yes',                  // セイア固有2の有無（デフォルト：あり）
+      magical_suzumi_koyuu2: 'yes',         // マジカルスズミ固有2の有無（デフォルト：あり）
       kanoe_ss: '0',                       // カノエのレベル（デフォルト：なし）
       cherino_ss: '0',                     // チェリノのレベル（デフォルト：なし）
       special_command_accepted: 'yes'      // 特殊コマンドを受け付ける（デフォルト：はい）
@@ -929,6 +937,7 @@
       'ss_enabled', 
       'max_cost',
       'seia_koyuu2',
+      'magical_suzumi_koyuu2',
       'kanoe_ss',
       'cherino_ss',
       'number_interpretation',
@@ -1342,6 +1351,17 @@
         });
       });
 
+      // マジカルスズミ固有2ボタンの設定
+      const magicalSuzumiButtons = Array.from(document.querySelectorAll('.btn[data-magical-suzumi]'));
+      magicalSuzumiButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          settings.magical_suzumi_koyuu2 = btn.dataset.magicalSuzumi;
+          updateActiveButtons();
+          saveSettings(); // 設定を自動保存
+          triggerAutoUpdate();
+        });
+      });
+
       // カノエボタンの設定
       const kanoeButtons = Array.from(document.querySelectorAll('.btn[data-kanoe]'));
       kanoeButtons.forEach(btn => {
@@ -1433,6 +1453,13 @@
         btn.classList.toggle('active', btn.dataset.seia === settings.seia_koyuu2);
       });
       document.getElementById('currentSeia').textContent = `(現在: ${settings.seia_koyuu2 === 'yes' ? 'あり' : 'なし'})`;
+
+      // マジカルスズミ固有2ボタンのアクティブ状態更新
+      const magicalSuzumiButtons = Array.from(document.querySelectorAll('.btn[data-magical-suzumi]'));
+      magicalSuzumiButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.magicalSuzumi === settings.magical_suzumi_koyuu2);
+      });
+      document.getElementById('currentMagicalSuzumi').textContent = `(現在: ${settings.magical_suzumi_koyuu2 === 'yes' ? 'あり' : 'なし'})`;
 
       // カノエボタンのアクティブ状態更新
       const kanoeButtons = Array.from(document.querySelectorAll('.btn[data-kanoe]'));

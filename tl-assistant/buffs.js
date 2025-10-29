@@ -15,8 +15,8 @@ window.BUFF_DATA = {
       "detection_patterns": [
         {
           "type": "regex",
-          "pattern": ".*水.*(ホシノ|おじ).*",
-          "description": "「水」と（「ホシノ」あるいは「おじ」）を含む"
+          "pattern": "(?=.*水)(?=.*(?:ホシノ|おじ)).*",
+          "description": "「水」と（「ホシノ」あるいは「おじ」）を順序を問わず含む"
         }
       ]
     },
@@ -25,7 +25,7 @@ window.BUFF_DATA = {
       "buff_name": "セイアEX",
       "buff_target": "セイア",
       "buff_amount": 718,
-      "duration_frames": [451, 536],  // 450フレーム or 536フレーム
+      "duration_frames": [451, 536],  // 451フレーム or 536フレーム
       "offset_frames": 99,
       "detection_patterns": [
         {
@@ -39,6 +39,21 @@ window.BUFF_DATA = {
           "type": "regex", 
           "pattern": ".*水.*",
           "description": "「水」を含む場合は除外"
+        }
+      ]
+    },
+    "magical_suzumi": {
+      "event_type": "cost_recovery_buff",
+      "buff_name": "マジカルスズミSS",
+      "buff_target": "マジカルスズミ",
+      "buff_amount": 690,
+      "duration_frames": [1049, 1500],  // 1049フレーム or 1500フレーム
+      "offset_frames": 143,
+      "detection_patterns": [
+        {
+          "type": "regex",
+          "pattern": "(?=.*マジ)(?=.*スズ).*",
+          "description": "「マジ」と「スズ」の両方を順序を問わず含む"
         }
       ]
     },

@@ -382,7 +382,7 @@ function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled
   const geburah_striker_bonus = 0.25; // ゲブラ戦でのストライカー追加倍率
   
   // ストライカー/スペシャル生徒の定義（既存バフがある生徒を含む）
-  const striker_students = new Set(['水着ホシノ', 'セイア', 'チェリノ', 'カノエ']);
+  const striker_students = new Set(['水着ホシノ', 'セイア', 'チェリノ', 'カノエ', 'マジカルスズミ']);
   const special_students = new Set(); // 現在は空集合
   
   // active_buffsからtargetの集合を取得（nullや空文字を除外）
@@ -442,6 +442,7 @@ function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled
   }
   
   // 各ストライカー生徒のコスト回復力を計算
+  const striker_recoveries = [];
   for (const student of all_striker_students) {
     let student_recovery = base_recovery + all_student_buff_total;
     
@@ -456,11 +457,13 @@ function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled
     const role_multiplier = 1 + is_boss_geburah * geburah_striker_bonus + ss_enabled * cost_recovery_ss_multiplier;
     
     const final_recovery = Math.round(student_recovery * role_multiplier);
-    console.log(`calculateTotalCostRecovery: ストライカー ${student} のコスト回復力: ${final_recovery}`);
+    striker_recoveries.push(`${student}:${final_recovery}`);
     total_cost_recovery += final_recovery;
   }
+  console.log(`calculateTotalCostRecovery: ストライカー [${striker_recoveries.join(', ')}]`);
   
   // 各スペシャル生徒のコスト回復力を計算
+  const special_recoveries = [];
   for (const student of all_special_students) {
     let student_recovery = base_recovery + all_student_buff_total;
     
@@ -475,9 +478,10 @@ function calculateTotalCostRecovery(additional_events, current_frame, ss_enabled
     const role_multiplier = 1 + ss_enabled * cost_recovery_ss_multiplier;
     
     const final_recovery = Math.round(student_recovery * role_multiplier);
-    console.log(`calculateTotalCostRecovery: スペシャル生徒 ${student} のコスト回復力: ${final_recovery}`);
+    special_recoveries.push(`${student}:${final_recovery}`);
     total_cost_recovery += final_recovery;
   }
+  console.log(`calculateTotalCostRecovery: スペシャル生徒 [${special_recoveries.join(', ')}]`);
   
   // グローバルバフ（NA）の追加回復量を計算
   let global_buff_total = 0;
@@ -1352,6 +1356,14 @@ class TimelineProcessor {
       console.log(`セイア固有2設定: ${seia_koyuu2}, 選択されたduration_frames: ${duration_frames}`);
     }
     
+    // マジカルスズミの特殊処理：固有2設定に基づいてduration_framesを選択
+    if (buff_info.buff_name === 'マジカルスズミSS') {
+      // settings.magical_suzumi_koyuu2が'yes'なら2番目（index 1）、'no'なら1番目（index 0）を使用
+      const magical_suzumi_koyuu2 = settings.magical_suzumi_koyuu2 || 'yes'; // デフォルトは'yes'
+      duration_frames = magical_suzumi_koyuu2 === 'yes' ? buff_info.duration_frames[1] : buff_info.duration_frames[0];
+      console.log(`マジカルスズミ固有2設定: ${magical_suzumi_koyuu2}, 選択されたduration_frames: ${duration_frames}`);
+    }
+    
     return {
       start_frame: actual_start_frame,
       end_frame: actual_start_frame + duration_frames,
@@ -1550,27 +1562,29 @@ class TimelineProcessor {
       this.radiatorManager.extractAndProcessRadiatorEvents(this.input_json.timeline);
       this.radiatorManager.calculateRadiatorIntervals(this.battle_time * 30);
 
-      // デバッグ用：RadiatorManagerの状態をコンソール表示
-      console.log('=== RadiatorManager デバッグ情報 ===');
-      console.log('ラジエーターイベント数:', this.radiatorManager.radiator_events?.length || 0);
-      console.log('ラジエーター区間数:', this.radiatorManager.radiator_intervals?.length || 0);
-      
-      if (this.radiatorManager.radiator_intervals?.length > 0) {
-        console.log('=== ラジエーター区間詳細 ===');
-        this.radiatorManager.radiator_intervals.forEach((interval, index) => {
-          const startSec = (interval.start_frame / 30).toFixed(1);
-          const endSec = (interval.end_frame / 30).toFixed(1);
-          console.log(`区間${index + 1}: ${startSec}秒(${interval.start_frame}f) ～ ${endSec}秒(${interval.end_frame}f) [自動延長: ${interval.auto_extended}]`);
-        });
-      } else {
-        console.log('ラジエーター区間は検出されませんでした');
+      // デバッグ用：RadiatorManagerの状態をコンソール表示（ゲブラボス戦時のみ）
+      if (this.is_boss_geburah) {
+        console.log('=== RadiatorManager デバッグ情報 ===');
+        console.log('ラジエーターイベント数:', this.radiatorManager.radiator_events?.length || 0);
+        console.log('ラジエーター区間数:', this.radiatorManager.radiator_intervals?.length || 0);
+        
+        if (this.radiatorManager.radiator_intervals?.length > 0) {
+          console.log('=== ラジエーター区間詳細 ===');
+          this.radiatorManager.radiator_intervals.forEach((interval, index) => {
+            const startSec = (interval.start_frame / 30).toFixed(1);
+            const endSec = (interval.end_frame / 30).toFixed(1);
+            console.log(`区間${index + 1}: ${startSec}秒(${interval.start_frame}f) ～ ${endSec}秒(${interval.end_frame}f) [自動延長: ${interval.auto_extended}]`);
+          });
+        } else {
+          console.log('ラジエーター区間は検出されませんでした');
+        }
+        // console.log('=== input_json.timeline デバッグ出力 ===');
+        // console.log(JSON.stringify(this.input_json.timeline, null, 2));
+        console.log('=== RadiatorManager デバッグ情報終了 ===');
+        
+        this.addAllRadiatorEvents();
+        console.log('additional_events after adding radiator events:', this.timeline_json.additional_events);
       }
-      console.log('=== input_json.timeline デバッグ出力 ===');
-      console.log(JSON.stringify(this.input_json.timeline, null, 2));
-      console.log('=== RadiatorManager デバッグ情報終了 ===');
-      
-      this.addAllRadiatorEvents();
-      console.log('additional_events after adding radiator events:', this.timeline_json.additional_events);
 
 
       // ========================================
