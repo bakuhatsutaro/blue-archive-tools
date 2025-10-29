@@ -59,7 +59,7 @@
     }
     
     .main-content {
-      padding: 24px;
+      padding: 8px 24px 24px 24px;
     }
     
     .controls { 
@@ -124,7 +124,7 @@
       background: #f1f5f9;
       border-radius: 12px;
       padding: 20px;
-      margin: 16px 0;
+      margin: 0 0 16px 0;
       border: 2px solid #e2e8f0;
     }
     
@@ -353,9 +353,9 @@
       background: #eff6ff;
       color: #1d4ed8;
       padding: 12px 16px;
-      border-radius: 8px;
-      border: 1px solid #bfdbfe;
-      margin: 16px 0;
+      border-radius: 12px;
+      border: 2px solid #bfdbfe;
+      margin: 16px 24px;
     }
     
     /* JSON出力エリア */
@@ -546,12 +546,16 @@
   <div class="container">
     <div class="header">
       <h1>ブルーアーカイブ TL Assistant</h1>
-      <p class="subtitle"><a href="https://note.com/bakub/n/n352de7d6d4de">取扱説明書的なnote</a><br>
-        <a href="https://x.com/atsubakutaro">作者</a>への要望はDMか<a href="https://discord.com/invite/nvAh835Pe2">Discord</a>推奨、<a href="https://peing.net/ja/bakuhatsu_taro">匿名の質問箱</a>も用意しましたがたまにしか見ないかも</p>
     </div>
     
     <div class="info-message">
-      <strong>New!</strong> マジカルスズミに仮対応しました。「マジカルスズミ」あるいは「マジスズ」と記入があれば自動でコスト回復が追加されます（判定条件は「マジ」と「スズ」）。(2025/10/29)
+      <div style="margin-bottom: 8px;">
+        <strong>New!</strong> マジカルスズミに仮対応しました。「マジカルスズミ」あるいは「マジスズ」と記入があれば自動でコスト回復が追加されます（判定条件は「マジ」と「スズ」）。(2025/10/29)
+      </div>
+      <div style="font-size: 0.95rem; line-height: 1.6; margin-top: 14px;">
+        📖 <a href="https://note.com/bakub/n/n352de7d6d4de" style="color: #1d4ed8; text-decoration: underline;">取扱説明書(note)</a><br>
+        💬 作者への要望：<a href="https://x.com/atsubakutaro" style="color: #1d4ed8; text-decoration: underline;">X (Twitter)</a>，<a href="https://discord.com/invite/nvAh835Pe2" style="color: #1d4ed8; text-decoration: underline;">Discord</a>，<a href="https://peing.net/ja/bakuhatsu_taro" style="color: #1d4ed8; text-decoration: underline;">質問箱</a>（匿名OK，たまにしか見ないかも）
+      </div>
     </div>
     
     <div class="main-content">
@@ -581,6 +585,10 @@
             <button class="btn" data-limit="10.5">10.5</button>
             <button class="btn" data-limit="11">11</button>
             <span id="currentLimit" class="muted"></span>
+          </div>
+
+          <div class="controls" style="visibility: hidden;">
+            <!-- 右側を空白にするためのダミー -->
           </div>
 
           <div class="controls">
