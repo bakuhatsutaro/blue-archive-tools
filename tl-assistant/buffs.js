@@ -47,7 +47,7 @@ window.BUFF_DATA = {
       "buff_name": "マジカルスズミSS",
       "buff_target": "マジカルスズミ",
       "buff_amount": 690,
-      "duration_frames": [1049, 1500],  // 1049フレーム or 1500フレーム
+      "duration_frames": [1049, 1248],  // 1049フレーム or 1248フレーム
       "offset_frames": 143,
       "detection_patterns": [
         {

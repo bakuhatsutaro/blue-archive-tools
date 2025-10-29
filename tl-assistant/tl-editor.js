@@ -579,6 +579,9 @@ function detectCostRecoveryBuff(event_name, buff_data = null) {
           }
         }
         
+        // バフ検知成功のログ出力
+        console.log(`detectCostRecoveryBuff: "${event_name}" -> ${buff_config.buff_name} 検知成功`);
+        
         return {
           buff_name: buff_config.buff_name,
           buff_target: buff_config.buff_target, // バフターゲットを追加
